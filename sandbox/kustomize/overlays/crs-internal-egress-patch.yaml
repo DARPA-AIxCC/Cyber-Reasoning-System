@@ -1,0 +1,12 @@
+---
+# kustomize/overlays/egress-patch.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: crs-sandbox-crs-internal
+spec:
+  egress:
+    - {}
+  podSelector:
+    matchLabels:
+      io.kompose.network/crs-sandbox-crs-internal: "true"

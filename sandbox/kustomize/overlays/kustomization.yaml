@@ -1,0 +1,7 @@
+---
+# kustomize/overlays/kustomization.yaml
+resources:
+  - ../../../charts
+
+patchesStrategicMerge:
+  - crs-internal-egress-patch.yaml

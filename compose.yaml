@@ -16,7 +16,8 @@
 ######################################################################################################
 
 include:
-  - sandbox/compose.yaml
+  - path:
+      - sandbox/compose.yaml
 
 #############
 ### CUSTOMIZE
@@ -26,6 +27,8 @@ include:
 ### Additional services are welcomed, just make sure to use the supplied variables and profile names
 services:
   crs:
+    networks:
+      - crs-internal  # Competitors: You MUST use this network only for any containers you add to your CRS.
     profiles:
       - development
       - competition

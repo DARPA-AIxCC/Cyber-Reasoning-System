@@ -1,0 +1,4 @@
+---
+# kustomize/base/kustomization.yaml
+resources:
+  - crs/templates/crs-sandbox-crs-internal-networkpolicy.yaml
