@@ -1,0 +1,235 @@
+[
+  {
+    "id": 1,
+    "name": "linux kernel",
+    "subject": "linux",
+    "bug_id": "exemplar-1",
+    "language": "c",
+    "build_script": "build.sh",
+    "config_script": "config.sh",
+    "instrument_script": "instrument.sh",
+    "trace_script": "trace.sh",
+    "cp-abspath": "/experiment/opt/challenge-001-exemplar/",
+    "src": {
+      "root_abspath": "/experiment/opt/challenge-001-exemplar/src",
+      "entrypoint": {
+        "file": "src/test_harnesses/linux_test_harness.c",
+        "function": "main"
+      }
+    },
+    "test_script": "test.sh",
+    "validate_script": "validate.sh",
+    "build_script_internal": "cp_build",
+    "run_script_internal": "cp_pov",
+    "test_script_internal": "cp_test",
+    "binary_path": "src/linux_kernel/vmlinux",
+    "bug_reports": [
+      "reports/report.txt"
+    ],
+    "analysis_output": [
+      {
+        "generator": "DARPA",
+        "confidence": 1.0,
+        "exploit_inputs": [
+          {
+            "format": "raw",
+            "dir": "failing_inputs"
+          }
+        ],
+        "benign_inputs": [
+          {
+            "format": "raw",
+            "dir": "passing_inputs"
+          }
+        ]
+      }
+    ],
+    "bug_type": "Test Failure",
+    "sanitizers": [
+      {
+        "id": "id_1",
+        "name": "KASAN: slab-out-of-bounds"
+      }
+    ],
+    "base_image": "exemplar-cp-linux",
+    "cp_sources": [
+      {
+        "name": "linux_kernel",
+        "address": "git@github.com:DARPA-AIxCC/challenge-001-linux-source.git",
+        "ref": "main"
+      }
+    ],
+    "harnesses": [
+      {
+        "id": "id_1",
+        "name": "linux_test_harness",
+        "source": "src/test_harnesses/linux_test_harness.c",
+        "binary": "out/linux_test_harness"
+      }
+    ],
+    "pvt_test_script": "",
+    "source_file": "",
+    "line_numbers": [],
+    "localization": [],
+    "checkout_commit": "main",
+    "build_command": "",
+    "compile_programs": [],
+    "failing_test_identifiers": [],
+    "passing_test_identifiers": [],
+    "count_neg": 0,
+    "count_pos": 0,
+    "test_timeout": 10
+  },
+  {
+    "id": 2,
+    "name": "jenkins",
+    "subject": "jenkins",
+    "bug_id": "exemplar-2",
+    "language": "java",
+    "build_script": "build.sh",
+    "config_script": "config.sh",
+    "test_script": "test.sh",
+    "instrument_script": "instrument.sh",
+    "trace_script": "trace.sh",
+    "validate_script": "validate.sh",
+    "build_script_internal": "cp_build",
+    "run_script_internal": "cp_pov",
+    "test_script_internal": "cp_test",
+    "bug_type": "Test Failure",
+    "pvt_test_script": "",
+    "sanitizers": [
+      {
+        "id": "id_1",
+        "name": "OSCommandInjection"
+      }
+    ],
+    "base_image": "ghcr.io/aixcc-sc/challenge-002-jenkins-cp:v1.0.0",
+    "cp_address": "git@github.com:aixcc-sc/challenge-002-jenkins-cp.git",
+    "cp_sources": [
+      {
+        "name": "jenkins",
+        "address": "git@github.com:aixcc-sc/challenge-002-jenkins-source.git",
+        "directory": ".readonly/jenkins",
+        "ref": "main"
+      },
+      {
+        "name": "plugins/pipeline-util-plugin",
+        "address": "git@github.com:aixcc-sc/challenge-002-jenkins-plugins.git",
+        "directory": ".readonly/plugins/pipeline-util-plugin",
+        "ref": "main"
+      }
+    ],
+    "harnesses": [
+      {
+        "id": "id_1",
+        "name": "id_1",
+        "source": "container_scripts/PipelineCommandUtilPovRunner.java",
+        "binary": "container_scripts/PipelineCommandUtilPovRunner.class"
+      }
+    ],
+    "analysis_output": [
+      {
+        "generator": "DARPA",
+        "confidence": 1.0,
+        "exploit_inputs": [
+          {
+            "format": "raw",
+            "dir": "failing_inputs"
+          }
+        ],
+        "benign_inputs": [
+          {
+            "format": "raw",
+            "dir": "passing_inputs"
+          }
+        ]
+      }
+    ],
+    "source_file": "",
+    "line_numbers": [],
+    "localization": [],
+    "checkout_commit": "main",
+    "build_command": "",
+    "compile_programs": [],
+    "failing_test_identifiers": [],
+    "passing_test_identifiers": [],
+    "count_neg": 0,
+    "count_pos": 0,
+    "test_timeout": 10
+  },
+  {
+    "id": 3,
+    "name": "Mock CP",
+    "subject": "mock_cp",
+    "bug_id": "exemplar-3",
+    "language": "c",
+    "build_script": "build.sh",
+    "config_script": "config.sh",
+    "test_script": "test.sh",
+    "instrument_script": "instrument.sh",
+    "trace_script": "trace.sh",
+    "validate_script": "validate.sh",
+    "build_script_internal": "cp_build",
+    "run_script_internal": "cp_pov",
+    "test_script_internal": "cp_test",
+    "bug_type": "Test Failure",
+    "base_image": "mock-cp",
+    "binary_path": "src/samples/mock_vp",
+    "sanitizers": [
+      {
+        "id": "id_1",
+        "name": "AddressSanitizer: global-buffer-overflow"
+      },
+      {
+        "id": "id_2",
+        "name": "AddressSanitizer: SEGV"
+      }
+    ],
+    "cp_sources": [
+      {
+        "name": "samples",
+        "address": "git@github.com:aixcc-sc/mock-cp-src.git",
+        "directory": "samples",
+        "ref": "v1.1.0"
+      }
+    ],
+    "analysis_output": [
+      {
+        "generator": "DARPA",
+        "confidence": 1.0,
+        "exploit_inputs": [
+          {
+            "format": "raw",
+            "dir": "failing_inputs"
+          }
+        ],
+        "benign_inputs": [
+          {
+            "format": "raw",
+            "dir": "passing_inputs"
+          }
+        ]
+      }
+    ],
+    "harnesses": [
+      {
+        "id": "id_1",
+        "name": "stdin_harness.sh",
+        "source": "src/test/stdin_harness.sh",
+        "binary": "out/stdin_harness.sh"
+      }
+    ],
+    "pvt_test_script": "",
+    "source_file": "",
+    "line_numbers": [],
+    "localization": [],
+    "checkout_commit": "v1.1.0",
+    "build_command": "",
+    "compile_programs": [],
+    "failing_test_identifiers": [],
+    "passing_test_identifiers": [],
+    "count_neg": 0,
+    "count_pos": 0,
+    "test_timeout": 10
+  }
+]

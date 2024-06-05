@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ name }}-job-{{ uuid }} 
+spec:
+  completions: 1
+  parallelism: 1
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: {{ name }} 
+          command:{% for cmd in commands %}
+            - {{ cmd }}{% endfor %}
+          image: {{ image }}
+
+          env:{% for env in env_vars%}
+            - name: {{ env.0 }}
+              value: {{ env.1 }}{% endfor %}
+
+          volumeMounts:{% for mnt in volumes %}
+            - mountPath: {{ mnt.1 }}
+              name: crs-scratch
+              subPath: {{ mnt.0 }}{% endfor %}{% if num_cpu > 0 %}
+          resources:
+            requests:
+              cpu: {{ num_cpu }}{% endif %}
+         
+      volumes:
+         - name: crs-scratch 
+           persistentVolumeClaim:
+             claimName: crs-scratch
+           name: crs-scratch

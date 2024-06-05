@@ -1,0 +1,149 @@
+{
+    "general": {
+        "parallel": false,
+        "enable_ui": false,
+        "secure-hash": false,
+        "debug-mode": true,
+        "cpus": 6
+    },
+    "tasks": {
+        "default": {
+            "compact-results": true,
+            "dump-patches": false,
+            "only-analyse": false,
+            "only-setup": false,
+            "only-instrument": false,
+            "only-test": false,
+            "rebuild-all": false,
+            "rebuild-base": false,
+            "use-cache": false,
+            "use-subject-as-base": true,
+            "use-container": true,
+            "use-gpu": false,
+            "use-purge": false,
+            "container-profiles-id-list": [
+                "CP1"
+            ],
+            "task-profiles-id-list": [
+                "TP1"
+            ]
+        },
+        "chunks": [
+            {
+                "type": "composite",
+                "composite-sequence": {
+                    "fuzz": [
+                        {
+                            "name": "aflsmarter",
+                            "local": true,
+                            "ignore": false
+                        },
+                        {
+                            "name": "kernelfuzz",
+                            "local": true,
+                            "ignore": false
+                        },
+                        {
+                            "name": "dumbfuzzer",
+                            "local": true,
+                            "ignore": false
+                        }
+                    ],
+                    "crash-analyze": [
+                        {
+                            "name": "sanitizeparser",
+                            "local": true,
+                            "ignore": false,
+                            "type": "analyze"
+                        }
+                    ],
+                    "bisect": [
+                        {
+                            "name": "chopper",
+                            "local": true,
+                            "ignore": false,
+                            "type": "analyze"
+                        }
+                    ],
+                    "localize": [
+                        {
+                            "name": "kernelsbfl",
+                            "local": true,
+                            "ignore": false
+                        }
+                    ],
+                    "repair": [
+                        {
+                            "name": "autocoderover",
+                            "local": true,
+                            "ignore": false
+                        },
+                        {
+                            "name": "hermes",
+                            "local": true,
+                            "ignore": false
+                        },
+                        {
+                            "name": "ddrepair",
+                            "local": true,
+                            "ignore": false
+                        }
+                    ],
+                    "validate": [
+                        {
+                            "name": "valkyrie",
+                            "local": true,
+                            "ignore": false
+                        }
+                    ],
+                    "iterative-repair": [
+                        {
+                            "name": "iterativehermes",
+                            "local": true,
+                            "ignore": false,
+                            "type": "repair"
+                        }
+                    ]
+                },
+                "benchmarks": [
+                    {
+                        "name": "darpa",
+                        "bug-id-list": [
+                            "*"
+                        ]
+                    }
+                ],
+                "tools": [
+                    {
+                        "name": "basicworkflow",
+                        "params": "",
+                        "local": true
+                    }
+                ]
+            }
+        ]
+    },
+    "profiles": {
+        "container-profiles": [
+            {
+                "id": "CP1",
+                "cpu-count": 6,
+                "mem-limit": "16g",
+                "enable-network": true
+            }
+        ],
+        "task-profiles": [
+            {
+                "id": "TP1",
+                "timeout": 4,
+                "fault-location": "auto",
+                "passing-test-ratio": 1,
+                "passing-test-limit": 30,
+                "failing-test-limit": 30,
+                "fuzz-timeout": 4,
+                "localize-timeout": 0.5,
+                "repair-timeout": 1
+            }
+        ]
+    }
+}

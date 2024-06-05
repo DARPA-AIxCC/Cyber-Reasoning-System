@@ -1,0 +1,60 @@
+  {
+    "id": 1,
+  "name": "linux kernel",
+  "subject": "linux_kernel",
+  "bug_id": "id_1_1",
+  "cp_path": "challenge-001-linux-cp",
+  "cp_src": "challenge-001-linux-cp/src/linux_kernel",
+  "bug_type": "test-failure",
+  "sanitizers": [
+  {
+    "id": "id_1",
+    "name": "KASAN: slab-out-of-bounds"
+  }
+],
+  "base_image": "ghcr.io/aixcc-sc/challenge-001-linux-cp:v3.0.0",
+  "cp_sources": [
+  {
+    "name": "linux_kernel",
+    "address": "git@github.com:aixcc-sc/challenge-001-linux-source.git",
+    "ref": "v2.0.0",
+    "artifacts": [
+      "src/linux_kernel/arch/x86/boot/bzImage"
+    ]
+  }
+],
+  "harnesses": [
+  {
+    "id": "id_1",
+    "name": "linux_test_harness",
+    "source": "src/test_harnesses/linux_test_harness.c",
+    "binary": "out/linux_test_harness"
+  }
+],
+  "analysis_output": [],
+  "bug_reports": [],
+  "binary_path": "src/linux_kernel/arch/x86/boot/bzImage",
+  "test_timeout": 10,
+  "language": "c",
+  "build_script": "build.sh",
+  "config_script": "config.sh",
+  "test_script": "test.sh",
+  "instrument_script": "instrument.sh",
+  "trace_script": "trace.sh",
+  "validate_script": "validate.sh",
+  "build_script_internal": "cp_build",
+  "run_script_internal": "cp_pov",
+  "test_script_internal": "cp_test",
+  "output_dir_abspath": "",
+  "pvt_test_script": "",
+  "source_file": "",
+  "line_numbers": [],
+  "localization": [],
+  "checkout_commit": "v2.0.0",
+  "build_command": "",
+  "compile_programs": [],
+  "failing_test_identifiers": [],
+  "passing_test_identifiers": [],
+  "count_neg": 0,
+  "count_pos": 0
+  }

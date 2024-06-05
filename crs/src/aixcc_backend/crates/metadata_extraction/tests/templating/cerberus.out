@@ -1,0 +1,112 @@
+[
+  {
+    "id": 1,
+    "name": "linux kernel",
+    "subject": "**cp_sanitized**",
+    "bug_id": "linux_test_harness_1",
+    "cp-abspath": "",
+    "bug_type": "test-failure",
+    "sanitizers": [
+      {
+        "id": "id_1",
+        "name": "KASAN: slab-out-of-bounds"
+      }
+    ],
+    "base_image": "",
+    "cp_sources": [
+      {
+        "name": "linux-kernel",
+        "address": "https://github.com/aixcc-public/challenge-001-exemplar-source.git",
+        "ref": "main"
+      }
+    ],
+    "harnesses": [
+      {
+        "name": "linux_test_harness",
+        "source": "src/test_harnesses/linux_test_harness.c",
+        "binary": "out/linux_test_harness"
+      }
+    ],
+    "analysis_output": [],
+    "bug_reports": [],
+    "binary_path": "out/linux_test_harness",
+    "test_timeout": 10,
+    "language": "c",
+    "build_script": "build.sh",
+    "config_script": "config.sh",
+    "test_script": "test.sh",
+    "instrument_script": "**instrument_script**",
+    "trace_script": "**trace_script**",
+    "validate_script": "**validate_script**",
+    "build_script_internal": "**build_script_internal**",
+    "run_script_internal": "**run_script_internal**",
+    "test_script_internal": "**test_script_internal**",
+    "output_dir_abspath": "",
+    "pvt_test_script": "",
+    "source_file": "",
+    "line_numbers": [],
+    "localization": [],
+    "checkout_commit": "main",
+    "build_command": "",
+    "compile_programs": [],
+    "failing_test_identifiers": [],
+    "passing_test_identifiers": [],
+    "count_neg": 0,
+    "count_pos": 0
+  },
+  {
+    "id": 2,
+    "name": "linux kernel",
+    "subject": "**cp_sanitized**",
+    "bug_id": "linux_test_harness2_2",
+    "cp-abspath": "",
+    "bug_type": "test-failure",
+    "sanitizers": [
+      {
+        "id": "id_1",
+        "name": "KASAN: slab-out-of-bounds"
+      }
+    ],
+    "base_image": "",
+    "cp_sources": [
+      {
+        "name": "linux-kernel",
+        "address": "https://github.com/aixcc-public/challenge-001-exemplar-source.git",
+        "ref": "main"
+      }
+    ],
+    "harnesses": [
+      {
+        "name": "linux_test_harness2",
+        "source": "src/test_harnesses/linux_test_harness.c2",
+        "binary": "out/linux_test_harness2"
+      }
+    ],
+    "analysis_output": [],
+    "bug_reports": [],
+    "binary_path": "out/linux_test_harness2",
+    "test_timeout": 10,
+    "language": "c",
+    "build_script": "build.sh",
+    "config_script": "config.sh",
+    "test_script": "test.sh",
+    "instrument_script": "**instrument_script**",
+    "trace_script": "**trace_script**",
+    "validate_script": "**validate_script**",
+    "build_script_internal": "**build_script_internal**",
+    "run_script_internal": "**run_script_internal**",
+    "test_script_internal": "**test_script_internal**",
+    "output_dir_abspath": "",
+    "pvt_test_script": "",
+    "source_file": "",
+    "line_numbers": [],
+    "localization": [],
+    "checkout_commit": "main",
+    "build_command": "",
+    "compile_programs": [],
+    "failing_test_identifiers": [],
+    "passing_test_identifiers": [],
+    "count_neg": 0,
+    "count_pos": 0
+  }
+]

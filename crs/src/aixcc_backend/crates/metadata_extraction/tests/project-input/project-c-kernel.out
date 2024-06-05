@@ -1,0 +1,23 @@
+{
+  "cp_name": "linux kernel",
+  "language": "C",
+  "docker_image": null,
+  "cp_sources": [
+    {
+      "address": "https://github.com/aixcc-public/challenge-001-exemplar-source.git",
+      "source_ref": "main",
+      "path": "linux-kernel",
+      "artifacts": null
+    }
+  ],
+  "sanitizers": {
+    "id_1": "KASAN: slab-out-of-bounds"
+  },
+  "harnesses": {
+    "linux_test_harness": {
+      "name": "linux_test_harness",
+      "source": "src/test_harnesses/linux_test_harness.c",
+      "binary": "out/linux_test_harness"
+    }
+  }
+}

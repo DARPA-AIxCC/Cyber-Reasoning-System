@@ -1,0 +1,15 @@
+[package]
+name = "iapi_client"
+version = "0.1.0"
+edition = "2021"
+
+[lints]
+workspace = true
+
+[dependencies]
+lib-iapi = {path = "../crates/lib-iapi"}
+clap = { version = "4.5", features = ["derive","default"] }
+tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread", "fs"] }
+reqwest = { version = "0.12", features = ["json"] }
+serde_json = { version = "1" }
+base64 = { version = "0.22.1" , features = ["alloc"]}

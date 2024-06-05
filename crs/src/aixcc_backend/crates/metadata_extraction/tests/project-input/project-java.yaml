@@ -1,0 +1,51 @@
+cp_name: "jenkins"
+
+# The language property denotes the *primary* language used; vulnerabilities will
+# exist solely within code of the CP's primary langauge.
+
+language: "java"
+
+# The cp_address property points the reader to the full challenge project repository
+# this exists so that the project.yaml file may be passed around standalone.
+
+cp_address: "git@github.com:DARPA-AIxCC/challenge-002-jenkins-cp.git"
+
+# The cp_sources property denotes the source repository addresses, as well as the
+# local path that the repository resides. During competition, the local path directory
+# will store a readonly copy of the source code, which will be copied for use.
+
+cp_sources:
+  jenkins:
+    address: "git@github.com:DARPA-AIxCC/challenge-002-jenkins-source.git"
+    directory: ".readonly/jenkins"
+  plugins/pipeline-util-plugin:
+    address: "git@github.com:DARPA-AIxCC/challenge-002-jenkins-plugins.git"
+    directory: ".readonly/plugins/pipeline-util-plugin"
+
+# The docker_img_address property denotes the address to pull the pre-built docker
+# image that the CP's Dockerfile bases from.
+
+docker_image: "ghcr.io/aixcc-sc/challenge-002-jenkins-cp:v1.0.0"
+
+# The sanitizers property denotes which sanitizers are available for scoring for
+# this particular challenge project; when specifying a santizer id to the scoring
+# server, use the *key* values here, e.g. use "id_1", not "sanitizer-1: subtype-1".
+#
+# Note, these key-value mappings are unique for each challenge project, sanitizer
+# id "id_1" will likely map to different values for each challenge project.
+
+sanitizers:
+  id_1: "OSCommandInjection"
+
+# The harnesses property denotes which aixcc harnesses are available to use for
+# triggering sanitizers for this challenge project; when specifying a harness id
+# to the scoring server, use the *key* value here, e.g. "test_harness_id_1", not
+# the values under 'source' or 'binary'.
+#
+# The source and binary properties point the reader to the appropriate directory
+# paths for the harness source code and executable binary (if exists).
+
+harnesses:
+  harness_id_1:
+    source: "container_scripts/PipelineCommandUtilPovRunner.java"
+    binary: "n/a"

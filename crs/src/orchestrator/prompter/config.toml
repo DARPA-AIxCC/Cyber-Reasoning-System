@@ -1,0 +1,24 @@
+[huggingface]
+hf_token = "YOUR_HUGGING_FACE_TOKEN_HERE"
+
+
+[litellm]
+litellm_key = "sk-1234"
+litellm_hostname = "http://litellm"
+
+
+[anthropic]
+anthropic_token = "YOUR_ANTHROPIC_TOKEN_HERE"
+
+
+[openai]
+openai_token = "YOUR_OPENAI_TOKEN_HERE"
+
+[google]
+gemini_token = "google-key.json"
+
+
+[data]
+data_path = "./megavul_simple.json"
+chroma_path = "./data_store"
+collection_name = "megavul"

@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Peach xmlns="http://peachfuzzer.com/2012/Peach" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://peachfuzzer.com/2012/Peach /peach/peach.xsd">
+	<Defaults>
+        <Number signed="false" />
+    </Defaults>
+    
+    <DataModel name="CRLF">
+        <Blob valueType="hex" value="0D 0A" mutable="false" token="true"/>
+    </DataModel>
+
+    <DataModel name="StartLine">
+    	<Choice name="Method">
+    		<String value="GET" mutable="false" token="true"/>
+    		<String value="POST" mutable="false" token="true"/>
+    		<String value="PUT" mutable="false" token="true"/>
+    		<String value="HEAD" mutable="false" token="true"/>
+    		<String value="OPTIONS" mutable="false" token="true"/>
+    		<String value="PATCH" mutable="false" token="true"/>
+    		<String value="CONNECT" mutable="false" token="true"/>
+    		<String value="TRACE" mutable="false" token="true"/>
+    	</Choice>
+    	<String value=" " mutable="false" token="true"/>
+    	<String name="URLStart" value="/" mutable="false" token="true"/>
+    	<String name="URLRemaining" />
+    	<String value=" " mutable="false" token="true"/>
+    	<Choice name="HttpVersion">
+    		<String value="HTTP/1.1" mutable="false" token="true"/>
+    		<String value="HTTP/1.0" mutable="false" token="true"/>
+    		<String value="HTTP/2" mutable="false" token="true"/>
+    		<String value="HTTP/3" mutable="false" token="true"/>
+    	</Choice>
+    	<Block ref="CRLF"/>
+    </DataModel>
+    
+    <DataModel name="OtherHeader">
+        <Choice>
+           	<String value="Host: " mutable="false" token="true"/>           	
+           	<String value="Connection: " mutable="false" token="true"/>
+           	<String value="Content-Type: " mutable="false" token="true"/>
+           	<String value="Content-Length: " mutable="false" token="true"/>
+           	<String value="User-Agent: " mutable="false" token="true"/>
+           	<String value="Accept: " mutable="false" token="true"/>
+           	<String value="Accept-Language: " mutable="false" token="true"/>
+           	<String value="Accept-Encoding: " mutable="false" token="true"/>
+           	<String value="Upgrade-Insecure-Requests: " mutable="false" token="true"/>
+           	<String value="Referer: " mutable="false" token="true"/>
+           	<String value="Cache-Control: " mutable="false" token="true"/>
+           	<String value="If-Modified-Since: " mutable="false" token="true"/>
+           	<String value="If-None-Match: " mutable="false" token="true"/>
+        </Choice>
+    	
+    	<String name="content"/>
+    	<Block ref="CRLF"/>
+    </DataModel>
+    
+    <DataModel name="KeyValuePair">
+    	<Choice>
+    		<String value="uid" mutable="false" token="true"/>
+    		<String value="sid" mutable="false" token="true"/>
+    		<String name="otherKey"/>
+    	</Choice>
+    	<String value="=" mutable="false" token="true"/>
+    	<String name="Value" value="abc;"/>
+    </DataModel>
+    
+    <DataModel name="Cookie">
+    	<String value="Cookie: " mutable="false" token="true"/>
+    	<Block name="content" ref="KeyValuePair" maxOccurs="20"/>
+    	<Block ref="CRLF"/>
+    </DataModel>
+    
+    <DataModel name="HTTP">
+    	<Block name="httpStartLine" ref="StartLine"/>
+    	<Choice name="httpHeaders" maxOccurs="20">
+    	 	<Block name="httpCookie" ref="Cookie"/>
+    	 	<Block name="httpOtherHeaders" ref="OtherHeader"/>
+    	</Choice>
+    	<Blob name="body" />
+    </DataModel>
+
+    <StateModel name="TheState" initialState="Initial">
+        <State name="Initial">
+            <!-- Take seed inputs and mutate them -->
+            <Action type="output">
+                <DataModel ref="HTTP"/>
+                <Data fileName="shared/in/nginx.bin"/>
+            </Action>
+
+            <Action type="close"/>
+        </State>
+    </StateModel>
+
+
+    <Test name="Default">
+        
+        <StateModel ref="TheState"/>
+
+        <Publisher class="File">
+            <Param name="FileName" value="fuzz.bin"/>
+        </Publisher>
+
+        <Logger class="Filesystem">
+            <Param name="Path" value="logs" />
+        </Logger>
+        
+        <Strategy class="Random">
+            <Param name="MaxFieldsToMutate" value="1" />
+            <Param name="SwitchCount" value="20" />
+        </Strategy>
+     
+        <Mutators name="ExcludedMutators" mode="exclude">
+            <Mutator class="ArrayRandomizeOrderMutator" />
+            <Mutator class="ArrayReverseOrderMutator" />
+            <Mutator class="ArrayNumericalEdgeCasesMutator" />
+            <Mutator class="ArrayVarianceMutator" />
+            <Mutator class="BlobBitFlipperMutator" />
+            <Mutator class="BlobDWORDSliderMutator" />
+            <Mutator class="BlobMutator" />
+            <Mutator class="DataElementDuplicateMutator" />
+            <Mutator class="DataElementRemoveMutator" />
+            <Mutator class="DataElementSwapNearNodesMutator" />
+            <Mutator class="FiniteRandomNumbersMutator" />
+            <Mutator class="NumericalEdgeCaseMutator" />
+            <Mutator class="NumericalVarianceMutator" />
+            <Mutator class="SizedDataNumericalEdgeCasesMutator" />
+            <Mutator class="SizedDataVarianceMutator" />
+            <Mutator class="SizedNumericalEdgeCasesMutator" />
+            <Mutator class="SizedVarianceMutator" />
+            <Mutator class="StringCaseMutator" />
+            <!--Mutator class="StringMutator" /-->
+            <Mutator class="UnicodeBadUtf8Mutator" />
+            <Mutator class="UnicodeBomMutator" />
+            <Mutator class="UnicodeStringsMutator" />
+            <Mutator class="UnicodeUtf8ThreeCharMutator" />
+            <Mutator class="ValidValuesMutator" />
+            <Mutator class="WordListMutator" />
+            <Mutator class="XmlW3CMutator" />     
+        </Mutators>
+    </Test>
+</Peach>
+<!-- end -->

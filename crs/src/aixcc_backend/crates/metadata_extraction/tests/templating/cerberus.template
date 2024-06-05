@@ -1,0 +1,65 @@
+[
+  {%- for harness_id, harness in harnesses %}
+  {
+    "id": {{loop.index}},
+    "name": "{{cp_name}}",
+    "subject": "{{cp_sanitized}}",
+    "bug_id": "{{harness_id}}_{{loop.index}}",
+    "cp-abspath": "",
+    "bug_type": "{{bug_type}}",
+    "sanitizers": [
+      {% for sanitizer_id, sanitizer_name in sanitizers -%}
+      {
+        "id": "{{sanitizer_id}}",
+        "name": "{{sanitizer_name}}"
+      }
+      {%- if loop.last == false%},{% endif -%}
+      {%- endfor %}
+    ],
+    "base_image": "{{docker_image}}",
+    "cp_sources": [
+      {% for source_entry in cp_sources -%}
+      {
+        "name": "{{source_entry.path}}",
+        "address": "{{source_entry.address}}",
+        "ref": "{{source_entry.source_ref}}"
+      }{% if loop.last == false%},{% endif %}
+      {%- endfor %}
+    ],
+    "harnesses": [
+      {
+        "name": "{{harness.name}}",
+        "source": "{{harness.source}}",
+        "binary": "{{harness.binary}}"
+      }
+    ],
+    "analysis_output": [],
+    "bug_reports": [],
+    "binary_path": "{{harness.binary}}",
+    "test_timeout": {{test_timeout}},
+    "language": "{{language | lower_case }}",
+    "build_script": "{{build_script}}",
+    "config_script": "{{config_script}}",
+    "test_script": "{{test_script}}",
+    "instrument_script": "{{instrument_script}}",
+    "trace_script": "{{trace_script}}",
+    "validate_script": "{{validate_script}}",
+    "build_script_internal": "{{build_script_internal}}",
+    "run_script_internal": "{{run_script_internal}}",
+    "test_script_internal": "{{test_script_internal}}",
+    "output_dir_abspath": "",
+    "pvt_test_script": "",
+    "source_file": "",
+    "line_numbers": [],
+    "localization": [],
+    "checkout_commit": "{{cp_sources[0].source_ref}}",
+    "build_command": "",
+    "compile_programs": [],
+    "failing_test_identifiers": [],
+    "passing_test_identifiers": [],
+    "count_neg": 0,
+    "count_pos": 0
+  }
+  {%- if loop.last == false%},{% endif -%}
+  {% endfor %}
+]
