@@ -16,7 +16,8 @@
 ######################################################################################################
 
 include:
-  - sandbox/compose.yaml
+  - path:
+      - sandbox/compose.yaml
 
 #############
 ### CUSTOMIZE
@@ -26,11 +27,13 @@ include:
 ### Additional services are welcomed, just make sure to use the supplied variables and profile names
 services:
   crs:
+    networks:
+      - crs-internal  # Competitors: You MUST use this network only for any containers you add to your CRS.
     profiles:
       - development
       - competition
-    # Competitors: You MUST change to your repos image name and be versioned pinned to the release intended for competition.
-    image: ghcr.io/aixcc-sc/crs-sandbox/replace-me-crs:v1.0.0
+    # Competitors: You MUST change crs-sandbox to your repo name, change replace-me-crs to your image name, and be versioned pinned to the release intended for competition.
+    image: ghcr.io/aixcc-sc/crs-sandbox/asc-crs-healing-touch:v0.0.3
     # Competitors: All services that are expected to have a clean exit must have restart: on-failure
     restart: on-failure
     build:
@@ -42,10 +45,45 @@ services:
       # If you have multiple containers for your CRS you must design your own
       # orchestration and sychronization mechanisms.
     command: ["./run.sh"]
+    environment:
+      # These values will be modified automatically at competition time
+      - DOCKER_HOST=tcp://dind:2375
+      - AIXCC_LITELLM_HOSTNAME=http://litellm
+      - AIXCC_API_HOSTNAME=http://iapi:8080
+      - AIXCC_CP_ROOT=/cp_root
+      - AIXCC_CRS_SCRATCH_SPACE=/crs_scratch
+      - LITELLM_KEY=sk-1234
+      - HEALING_TOUCH_BACKEND=http://crs-backend:9042
+      - HT_DEV_MODE=0
+    depends_on:
+      iapi:
+        condition: service_healthy
+  crs-backend:
+    networks:
+      - crs-internal  # Competitors: You MUST use this network only for any containers you add to your CRS.
+    expose:
+      - "9042"
+    profiles:
+      - development
+      - competition
+    # Competitors: You MUST change crs-sandbox to your repo name, change replace-me-crs to your image name, and be versioned pinned to the release intended for competition.
+    image: ghcr.io/aixcc-sc/crs-sandbox/crs-backend:v1.0.0
+    # Competitors: All services that are expected to have a clean exit must have restart: on-failure
+    restart: on-failure
+    build:
+      context: crs/src/aixcc_backend/  # Note that this uses the base folder for context, you may not need this for your CRS
+      # Competitors: You MUST change to your Dockerfile location for your CRS.
+      # This points to the mock_crs by default.
+      dockerfile: Dockerfile
+      # Competitors: You will need to change this command to trigger your CRS.
+      # If you have multiple containers for your CRS you must design your own
+      # orchestration and sychronization mechanisms.
+    command: ["./run.sh"]
     volumes:
       #################################################################################
       ### THESE VOLUMES MUST BE INCLUDED WITHOUT MODIFICATION TO ALL CRS CONTAINERS ###
-      # A CRS MUST copy CP repositories from `/cp_root` to a writable location such as `/crs_scratch` for building and testing CPs.
+      # A CRS MUST copy CP repositories from `AIXCC_CP_ROOT` to a writable location such as
+      # `AIXCC_CRS_SCRATCH_SPACE` for building and testing CPs.
       # A CRS MUST not modify settings within this section.
       - type: bind
         source: ${PWD}/crs_scratch
@@ -63,6 +101,13 @@ services:
       - AIXCC_CP_ROOT=/cp_root
       - AIXCC_CRS_SCRATCH_SPACE=/crs_scratch
       - LITELLM_KEY=sk-1234
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://127.0.0.1:9042/health/ || exit 1"]
+      interval: 5s
+      retries: 10
+      start_period: 3s
+      timeout: 5s
+
     depends_on:
       iapi:
         condition: service_healthy

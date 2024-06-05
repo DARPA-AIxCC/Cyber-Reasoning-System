@@ -1,0 +1,32 @@
+{
+  "subject": "linux kernel",
+  "cp-abspath": "/experiment/opt/challenge-001-exemplar/",
+  "src": {
+      "root_abspath": "/experiment/opt/challenge-001-exemplar/src",
+      "entrypoint": {
+          "file": "src/test_harnesses/linux_test_harness.c",
+          "function": "main"
+      }
+  },
+  "sanitizer":  "KASAN: slab-out-of-bounds",
+  "binary_path": "out/linux_test_harness",
+  "binary_args": "$POC",
+  "test_timeout": 5,
+  "language": "c",
+  "config_script": "echo ''",
+  "build_script": "./run.sh build",
+  "test_script": "./run.sh test",
+  "output_dir_abspath": "/opt/out",
+  "analysis_output": [
+      {
+        "generator": "static test suite",
+        "bug_type": "None",
+        "confidence": 1.0,
+        "exploit_inputs": [],
+        "benign_inputs": [{
+            "format": "raw",
+            "dir": "initial_corpus"
+        }]
+      }
+ ]
+}

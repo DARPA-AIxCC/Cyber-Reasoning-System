@@ -1,0 +1,58 @@
+FROM ubuntu:20.04
+
+RUN echo 'deb http://dk.archive.ubuntu.com/ubuntu/ trusty main' >> \
+         /etc/apt/sources.list && \
+    echo 'deb http://dk.archive.ubuntu.com/ubuntu/ trusty universe' >> \
+         /etc/apt/sources.list && \
+    apt-get update && \
+    apt-get install -y \
+    gcc-4.4 \
+    g++-4.4 \
+    unzip \
+    sudo \
+    nano \
+    wget \
+    tzdata \
+    curl \
+    patch \
+    python2 && \
+    curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py && \
+    python2 get-pip.py && \
+    ln -s /usr/bin/python2.7 /usr/bin/python
+
+RUN dpkg --add-architecture i386 && \
+    apt-get update && \
+    apt-get install -y \
+    apt-utils \
+    libc6-dev-i386 \
+    g++-multilib \
+    mono-complete \
+    software-properties-common
+
+
+# Add a new user ubuntu, pass: ubuntu
+RUN groupadd ubuntu && \
+    useradd -rm -d /home/ubuntu -s /bin/bash -g ubuntu -G sudo -u 1000 ubuntu -p "$(openssl passwd -1 ubuntu)"
+
+# Use ubuntu as the default username
+USER ubuntu
+WORKDIR /home/ubuntu
+
+# Set up environment variables
+ENV WORKDIR="/home/ubuntu"
+ENV PATH="${PATH}:${WORKDIR}:${WORKDIR}/peach-3.0.202-source/output/linux_x86_64_release/bin"
+
+# Copy file from the host folder where Dockerfile is stored
+COPY --chown=ubuntu:ubuntu kernel_pit_cracker.xml $WORKDIR/kernel_pit_cracker.xml
+COPY --chown=ubuntu:ubuntu wscript_build $WORKDIR/wscript_build
+COPY --chown=ubuntu:ubuntu peach-3.0.202.patch $WORKDIR/peach-3.0.202.patch
+
+# Install Peach generation-based fuzzer
+RUN cd $WORKDIR && \
+    wget https://storage.googleapis.com/fuzzbench-files/peach-3.0.202-source.zip && \
+    unzip peach-3.0.202-source.zip && \
+    cp wscript_build peach-3.0.202-source/Peach.Core.Analysis.Pin.BasicBlocks/ && \
+    patch -p1 < peach-3.0.202.patch && \
+    cd peach-3.0.202-source && \
+    CC=gcc-4.4 CXX=g++-4.4 ./waf configure && \
+    CC=gcc-4.4 CXX=g++-4.4 ./waf install

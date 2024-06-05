@@ -1,0 +1,13 @@
+diff --git a/Dockerfile b/Dockerfile
+index 3b1d613..45e3950 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -46,3 +46,8 @@ COPY exemplar_only/test_blob.py $BINS/test_blob.py
+ FROM exemplar-cp-linux:base as exemplar-cp-linux
+ 
+ # Competitors can add changes to default docker image here
++
++RUN git clone https://github.com/AFLplusplus/AFLplusplus.git
++RUN cd AFLplusplus; make; make install
++
++COPY build.sh $BINS/build.sh

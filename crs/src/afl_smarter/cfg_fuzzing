@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# change this to either one .g4 file, or both lexer and parser
+if [ "$#" -eq 1 ]; then
+    G4_FILE=$1
+    G4_parser = ""
+    TWO_FILES=False
+elif [ "$#" -eq 2 ]; then
+    G4_FILE=$1
+    G4_parser=$2
+    TWO_FILES=True
+fi
+
+BATCH_SIZE=${AIxCC_BATCH_SIZE:-50}
+TMP_DIR=$AIxCC_TMP_DIR
+OUT_DIR=$AIxCC_OUT_DIR
+MAX_COUNT=${AIxCC_MAX_COUNT:-1000}
+DEPTH=${AIxCC_MAX_DEPTH:-50}
+G4_FUZZER_DIR=g4-fuzzer
+
+# Create folders if needed
+if [ ! -d "$TMP_DIR" ]; then
+    mkdir -p "$TMP_DIR"
+    echo "Folder '$TMP_DIR' created."
+fi
+
+if [ ! -d "$OUT_DIR" ]; then
+    mkdir -p "$OUT_DIR"
+    echo "Folder '$OUT_DIR' created."
+fi
+
+if [ ! -d "$G4_FUZZER_DIR" ]; then
+    mkdir -p "$G4_FUZZER_DIR"
+    echo "Folder '$G4_FUZZER_DIR' created."
+fi
+
+
+# Produce test generation script
+if [ "$TWO_FILES" = True ]; then
+     grammarinator-process $G4_FILE $G4_parser -o $G4_FUZZER_DIR --pep8
+else
+    grammarinator-process $G4_FILE -o $G4_FUZZER_DIR --pep8
+fi
+
+# Reset test index
+i=0
+
+# Extract the name of the grammar only, say http instead of http.g4
+gname=${G4_FILE%.*}
+gname=${gname%Parser}
+gname=${gname%Lexer}
+echo "Context Free Grammar Fuzzing in progress. Grammar file: $G4_FILE, $G4_parser" 
+
+while [ $i -lt $MAX_COUNT ]
+do
+    grammarinator-generate ${gname}Generator.${gname}Generator -d $DEPTH -o $TMP_DIR/id_g4:$i -n $BATCH_SIZE \
+                           -s grammarinator.runtime.simple_space_serializer --sys-path $G4_FUZZER_DIR
+    # Increment i
+    ((i++))
+
+    # Run Adaptive Random Testing component for seed selection 
+     # if the specified batch size is reached
+    if [ $(($i % $BATCH_SIZE)) -eq 0 ]; then
+        python3 /home/ubuntu/ART.py $TMP_DIR $OUT_DIR
+        echo "Completed test selection for this batch. Delete the temp dir."
+        rm -rf $TMP_DIR > /dev/null
+    fi
+done

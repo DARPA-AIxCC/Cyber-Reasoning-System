@@ -1,0 +1,29 @@
+{
+  "cp_name": "jenkins",
+  "language": "Java",
+  "docker_image": "ghcr.io/aixcc-sc/challenge-002-jenkins-cp:v1.0.0",
+  "cp_sources": [
+    {
+      "address": "git@github.com:DARPA-AIxCC/challenge-002-jenkins-source.git",
+      "source_ref": "main",
+      "path": ".readonly/jenkins",
+      "artifacts": null
+    },
+    {
+      "address": "git@github.com:DARPA-AIxCC/challenge-002-jenkins-plugins.git",
+      "source_ref": "main",
+      "path": ".readonly/plugins/pipeline-util-plugin",
+      "artifacts": null
+    }
+  ],
+  "sanitizers": {
+    "id_1": "OSCommandInjection"
+  },
+  "harnesses": {
+    "harness_id_1": {
+      "name": "harness_id_1",
+      "source": "container_scripts/PipelineCommandUtilPovRunner.java",
+      "binary": null
+    }
+  }
+}

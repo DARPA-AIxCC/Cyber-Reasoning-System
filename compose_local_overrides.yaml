@@ -1,0 +1,42 @@
+# This file is used just for exposing host ports for local Docker Compose development
+# Competitors: You may modify this file to make local development easier.
+# However, this file will not impact services at competition, only local development.
+
+# We recommend you only bind ports to 127.0.0.1 in this file & have a GitHub action checking this.
+# If you need to bind to other interfaces, putting a comment in this file containing only "exposed-port-check: disable" will turn off that check.
+
+---
+services:
+  # dind:
+  #   ports:
+  #     - "127.0.0.1:2375:2375"
+  crs:
+    depends_on:
+      load-cp-images:
+        condition: service_completed_successfully
+  iapi:
+    ports:
+      - '127.0.0.1:8080:8080'
+    depends_on:
+      capi:
+        condition: service_healthy
+  capi:
+    # ports:
+    #   - "127.0.0.1:8082:8080"
+    volumes:
+      - type: bind
+        source: ${PWD}/capi_logs
+        target: /var/log/capi
+        bind:
+          propagation: rshared
+      - type: bind
+        source: ${PWD}/cp_root
+        target: /cp_root
+        bind:
+          propagation: rshared
+  # db:
+  #   ports:
+  #     - "127.0.0.1:5432:5432"
+  litellm:
+    ports:
+      - '127.0.0.1:8081:80'
