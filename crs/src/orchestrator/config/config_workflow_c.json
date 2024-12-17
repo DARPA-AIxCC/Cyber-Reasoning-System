@@ -1,0 +1,126 @@
+{
+    "general": {
+        "parallel": false,
+        "enable_ui": false,
+        "secure-hash": false,
+        "debug-mode": true,
+        "cpus": 6
+    },
+    "tasks": {
+        "default": {
+            "compact-results": true,
+            "dump-patches": false,
+            "only-analyse": false,
+            "only-setup": false,
+            "only-instrument": false,
+            "only-test": false,
+            "rebuild-all": false,
+            "rebuild-base": false,
+            "use-cache": false,
+            "use-subject-as-base": true,
+            "use-container": true,
+            "use-gpu": false,
+            "use-purge": false,
+            "container-profiles-id-list": [
+                "CP1"
+            ],
+            "task-profiles-id-list": [
+                "TP1"
+            ]
+        },
+        "chunks": [
+            {
+                "type": "composite",
+                "composite-sequence": {
+                    "fuzz": [
+                        {
+                            "name": "normalfuzz",
+                            "local": true,
+                            "ignore": false
+                        }
+                    ],
+                    "crash-analyze": [
+                        {
+                            "name": "sanitizeparser",
+                            "local": true,
+                            "ignore": false,
+                            "type": "analyze"
+                        }
+                    ],
+                    "bisect": [
+                        {
+                            "name": "chopper",
+                            "local": true,
+                            "ignore": true,
+                            "type": "analyze"
+                        }
+                    ],
+                    "localize": [
+                        {
+                            "name": "e9patchsbfl",
+                            "local": true,
+                            "ignore": true
+                        }
+                    ],
+                    "repair": [
+                        {
+                            "name": "autocoderover",
+                            "local": true,
+                            "ignore": false
+                        },
+                        {
+                            "name": "hermes",
+                            "local": true,
+                            "ignore": true
+                        }
+                    ],
+                    "validate": [
+                        {
+                            "name": "valkyrie",
+                            "local": true,
+                            "ignore": true
+                        }
+                    ]
+                },
+                "benchmarks": [
+                    {
+                        "name": "darpa",
+                        "bug-id-list": [
+                            "3"
+                        ]
+                    }
+                ],
+                "tools": [
+                    {
+                        "name": "basicworkflow",
+                        "params": "",
+                        "local": true
+                    }
+                ]
+            }
+        ]
+    },
+    "profiles": {
+        "container-profiles": [
+            {
+                "id": "CP1",
+                "cpu-count": 2,
+                "mem-limit": "16g",
+                "enable-network": true
+            }
+        ],
+        "task-profiles": [
+            {
+                "id": "TP1",
+                "timeout": 1,
+                "fault-location": "auto",
+                "passing-test-ratio": 1,
+                "passing-test-limit": 50,
+                "failing-test-limit": 50,
+                "fuzz-timeout": 1,
+                "localize-timeout": 0.25,
+                "repair-timeout": 0.5
+            }
+        ]
+    }
+}

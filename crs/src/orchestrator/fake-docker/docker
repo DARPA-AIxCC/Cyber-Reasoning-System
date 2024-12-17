@@ -1,0 +1,102 @@
+#!/usr/bin/python3
+
+import subprocess as sp
+import sys
+import yaml
+import os
+import shlex
+from uuid import uuid4
+from jinja2 import Environment, FileSystemLoader
+import sys
+import pathlib
+from pathlib import Path
+import shutil
+
+num_cpu = int(os.getenv("CPU_COUNT", 5))
+dry_run = os.getenv("DRY_RUN")
+tool_name = os.getenv("TOOL_NAME", "")
+dry_run = 0
+
+
+MOCK = False  # For testing
+if MOCK:
+    f = open("test-resources/docker-run.txt")
+    docker_run_cmds = shlex.split(f.read())
+    f.close()
+else:
+    docker_run_cmds = sys.argv
+    sys.argv[0] = "docker"
+
+current_path = os.environ["PATH"]
+real_path = current_path[current_path.index(":") :]
+
+real_environ = os.environ.copy()
+real_environ["PATH"] = real_path
+
+if docker_run_cmds[1] == "inspect":
+    p = sp.run(sys.argv, env=real_environ, shell=True)
+    sys.exit(p.returncode)
+
+
+for i, arg in enumerate(docker_run_cmds):
+    if arg == "bash" and docker_run_cmds[i + 1] == "-c":
+        docker_run_cmds[i + 2] = '"' + docker_run_cmds[i + 2] + '"'
+
+sp.run(
+    f"""composerize {' '.join(docker_run_cmds)} > .compose.yaml""",
+    shell=True,
+    check=True,
+)
+
+file = open(".compose.yaml", "r")
+compose = yaml.safe_load(file)
+file.close()
+
+sp.run("rm .compose.yaml", shell=True)
+
+if not len(compose["services"]) == 1:
+    exit(1)
+
+target_service = compose["services"]
+if not len(target_service.keys()) == 1:
+    exit(1)
+
+name = list(target_service.keys())[0]
+
+target_service = target_service[name]
+
+env_file = target_service["env_file"]
+image = target_service["image"]
+volumes = [v.replace("/crs_scratch/", "") for v in target_service["volumes"]]
+volumes = [(v.split(":")[0], v.split(":")[1]) for v in volumes]
+env_vars = [(e.split("=")[0], e.split("=")[1]) for e in target_service["environment"]]
+command = shlex.split(target_service["command"])
+uuid = str(uuid4())[:8]
+if len(tool_name) > 0:
+    name = f"{tool_name.replace('_','-')}-{name}"
+
+
+environment = Environment(
+    loader=FileSystemLoader(Path(__file__).parent.joinpath("templates"))
+)
+template = environment.get_template("job.yaml")
+content = template.render(
+    num_cpu=num_cpu,
+    uuid=uuid,
+    name=name,
+    image=image,
+    volumes=volumes,
+    env_vars=env_vars,
+    commands=["bash", "-c", '"' + target_service["command"][7:] + '"'],
+)
+
+if not dry_run or int(dry_run) == 0:
+    fname = f"{name}.yaml"
+    f = open(fname, "w")
+    f.write(content)
+    f.close()
+    sp.run(f"kubectl apply -f {fname}", shell=True, check=True)
+    p1 = sp.run(f"kubectl wait -f {fname} --timeout=4h --for=condition=complete", shell=True)
+    p2 = sp.run(f"kubectl delete -f {fname}", shell=True)
+else:
+    print(content)

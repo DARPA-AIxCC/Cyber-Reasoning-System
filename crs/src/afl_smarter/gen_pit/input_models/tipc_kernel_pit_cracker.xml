@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Peach xmlns="http://peachfuzzer.com/2012/Peach" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://peachfuzzer.com/2012/Peach /peach/peach.xsd">
+	<Defaults>
+        <Number signed="false" />
+    </Defaults>
+
+    <DataModel name="CmdType0">
+        <Number name="Type" size="32" value="0" token="true" />
+        <Number name="Length" size="32">
+            <Hint name="SizedVarianceMutator-N" value="1000" />
+            <Hint name="SizedDataVaranceMutator-N" value="1000" />
+            <Hint name="SizedNumericalEdgeCasesMutator-N" value="1000" />
+            <Relation type="size" of="CmdType0Data" />
+        </Number>
+        <Number name="Flags" size="32" />
+        <Blob name="CmdType0Data" />
+    </DataModel>       
+
+    <DataModel name="CmdType1">
+        <Number name="Type" size="32" value="1" token="true" />
+        <Number name="MsgType" size="32" />
+        <Number name="Flags" size="32" />
+        <Number name="Protocol" size="32" />
+        <Number name="Size" size="32">
+             <Relation type="size" of="CmdType1Data" />
+        </Number>
+        <Blob name="CmdType1Data" />
+    </DataModel>
+    
+    <DataModel name="Kernel">
+        <Number name="Count" size="32">
+             <Relation type="count" of="Commands"/>
+        </Number>
+        <Choice name="Commands" maxOccurs="1000">
+            <Block name="Type0Command" ref="CmdType0"/>
+            <Block name="Type1Command" ref="CmdType1"/>
+        </Choice>
+    </DataModel>
+
+    <StateModel name="TheState" initialState="Initial">
+        <State name="Initial">
+            <!-- Take seed inputs and mutate them -->
+            <Action type="output">
+                <DataModel ref="Kernel"/>
+                <Data fileName="shared/in/kernel_benign.bin"/>
+            </Action>
+            <Action type="close"/>
+        </State>
+    </StateModel>
+
+    <Test name="Default">
+        <StateModel ref="TheState"/>
+
+        <Publisher class="File">
+            <Param name="FileName" value="fuzz.bin"/>
+        </Publisher>
+
+        <Logger class="Filesystem">
+            <Param name="Path" value="logs" />
+        </Logger>
+        
+        <Strategy class="Random">
+            <Param name="MaxFieldsToMutate" value="1" />
+            <Param name="SwitchCount" value="200" />
+        </Strategy>
+     
+        <Mutators name="ExcludedMutators" mode="exclude">
+            <Mutator class="ArrayRandomizeOrderMutator" />
+            <Mutator class="ArrayReverseOrderMutator" />
+            <Mutator class="ArrayNumericalEdgeCasesMutator" />
+            <Mutator class="ArrayVarianceMutator" />
+            <Mutator class="BlobBitFlipperMutator" />
+            <Mutator class="BlobDWORDSliderMutator" />
+            <Mutator class="BlobMutator" />
+            <Mutator class="DataElementDuplicateMutator" />
+            <Mutator class="DataElementRemoveMutator" />
+            <Mutator class="DataElementSwapNearNodesMutator" />
+            <Mutator class="FiniteRandomNumbersMutator" />
+            <Mutator class="NumericalEdgeCaseMutator" />
+            <Mutator class="NumericalVarianceMutator" />
+            <Mutator class="SizedDataNumericalEdgeCasesMutator" />
+            <Mutator class="SizedDataVarianceMutator" />
+            <!--<Mutator class="SizedNumericalEdgeCasesMutator" />-->
+            <!--<Mutator class="SizedVarianceMutator" />-->
+            <Mutator class="StringCaseMutator" />
+            <Mutator class="StringMutator" />
+            <Mutator class="UnicodeBadUtf8Mutator" />
+            <Mutator class="UnicodeBomMutator" />
+            <Mutator class="UnicodeStringsMutator" />
+            <Mutator class="UnicodeUtf8ThreeCharMutator" />
+            <Mutator class="ValidValuesMutator" />
+            <Mutator class="WordListMutator" />
+            <Mutator class="XmlW3CMutator" />     
+        </Mutators>
+    </Test>
+</Peach>
+<!-- end -->

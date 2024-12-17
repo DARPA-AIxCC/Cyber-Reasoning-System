@@ -1,0 +1,31 @@
+//------------------------------------------------
+//--- 010 Editor Binary Template
+//
+//      File: kernel_010.bt
+//   Authors: Thuan Pham
+//   Version: 0.1
+//   Purpose: Parse AIxCC inputs for the kernel exemplar
+//   Category: Binary
+//   File Mask: *.bin
+//   ID Bytes: 89 50 4E 47 //%PNG
+//   History:
+//   0.1   2024-06-06 Initial version
+//------------------------------------------------
+
+typedef struct Cmd {
+   int Type;
+   if (Type == 0) {
+      int Length;
+      int Flags;
+      char Data[Length];
+   } else {
+      int MsgType;
+      int Flags;
+      int Protocol;
+      int Size;
+      char Data[Size];
+   }
+} CMD <optimize=false>;
+
+int count;
+CMD commands[count];

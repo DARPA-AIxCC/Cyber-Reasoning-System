@@ -1,0 +1,25 @@
+{
+  "cp_name": "nginx",
+  "language": "C",
+  "docker_image": "ghcr.io/aixcc-sc/challenge-004-nginx-cp:v1.0.0",
+  "cp_sources": [
+    {
+      "address": "git@github.com:aixcc-sc/challenge-004-nginx-source.git",
+      "source_ref": "v1.0.0",
+      "path": "nginx",
+      "artifacts": [
+        "src/nginx/objs/nginx"
+      ]
+    }
+  ],
+  "sanitizers": {
+    "id_1": "AddressSanitizer: heap-buffer-overflow"
+  },
+  "harnesses": {
+    "id_1": {
+      "name": "pov_harness",
+      "source": "src/harnesses/pov_harness.cc",
+      "binary": "out/pov_harness"
+    }
+  }
+}

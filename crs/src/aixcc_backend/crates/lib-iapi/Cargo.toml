@@ -1,0 +1,17 @@
+[package]
+name = "lib-iapi"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+uuid = "1.8"
+reqwest = { version = "0.12", features = ["json"] }
+url = "2.5.0"
+base64 = { version = "0.22.1" , features = ["alloc"]}
+
+
+
+[lints]
+workspace = true

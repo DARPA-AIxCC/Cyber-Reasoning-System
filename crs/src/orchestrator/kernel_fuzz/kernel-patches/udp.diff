@@ -1,0 +1,53 @@
+diff --git a/net/ipv4/udp.c b/net/ipv4/udp.c
+index b2aa77775..183d442c4 100644
+--- a/net/ipv4/udp.c
++++ b/net/ipv4/udp.c
+@@ -2232,13 +2232,35 @@ static int udp_queue_rcv_one_skb(struct sock *sk, struct sk_buff *skb)
+ 	return -1;
+ }
+ 
++extern void kcov_ivshmem_stop(void);
++extern void kcov_ivshmem_start(void);
++
+ static int udp_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
+ {
+ 	struct sk_buff *next, *segs;
+ 	int ret;
+ 
+-	if (likely(!udp_unexpected_gso(sk, skb)))
+-		return udp_queue_rcv_one_skb(sk, skb);
++	struct udphdr *udph;
++	unsigned int src_port, dst_port;
++	udph = udp_hdr(skb);
++	// Extract source and destination ports
++	src_port = ntohs(udph->source);
++	dst_port = ntohs(udph->dest);
++	// We don't care about kernel sending messages to itself
++	// Later, we would need to e.g. strace the harness to find the
++	// port is 6118. For now this makes the traces less noisy
++	// and thus easier to debug
++	if (dst_port == 6118 && src_port != dst_port) {
++		kcov_ivshmem_start();
++	}
++
++	if (likely(!udp_unexpected_gso(sk, skb))) {
++		ret = udp_queue_rcv_one_skb(sk, skb);
++		if (dst_port == 6118 && src_port != dst_port) {
++			kcov_ivshmem_stop();
++		}
++		return ret;
++	}
+ 
+ 	BUILD_BUG_ON(sizeof(struct udp_skb_cb) > SKB_GSO_CB_OFFSET);
+ 	__skb_push(skb, -skb_mac_offset(skb));
+@@ -2251,6 +2273,10 @@ static int udp_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
+ 		if (ret > 0)
+ 			ip_protocol_deliver_rcu(dev_net(skb->dev), skb, ret);
+ 	}
++
++	if (dst_port == 6118 && src_port != dst_port) {
++		kcov_ivshmem_stop();
++	}
+ 	return 0;
+ }
+ 

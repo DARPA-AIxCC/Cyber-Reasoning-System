@@ -1,0 +1,76 @@
+diff --git a/net/ipv4/udp.c b/net/ipv4/udp.c
+index b2aa77775..65015a653 100644
+--- a/net/ipv4/udp.c
++++ b/net/ipv4/udp.c
+@@ -116,6 +116,9 @@
+ #if IS_ENABLED(CONFIG_IPV6)
+ #include <net/ipv6_stubs.h>
+ #endif
++#include <linux/kcov.h>
++#include <linux/spinlock.h>
++#include <linux/timer.h>
+ 
+ struct udp_table udp_table __read_mostly;
+ EXPORT_SYMBOL(udp_table);
+@@ -2232,13 +2235,48 @@ static int udp_queue_rcv_one_skb(struct sock *sk, struct sk_buff *skb)
+ 	return -1;
+ }
+ 
++static int ctr = 0;
++static DEFINE_SPINLOCK(mylock);
++#define KCOV_SUBSYSTEM_NET  (0x01ull << 56)
++
+ static int udp_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
+ {
+ 	struct sk_buff *next, *segs;
+ 	int ret;
+ 
+-	if (likely(!udp_unexpected_gso(sk, skb)))
+-		return udp_queue_rcv_one_skb(sk, skb);
++	struct udphdr *udph;
++	unsigned int src_port, dst_port;
++	unsigned long flags;
++	int local_ctr;
++
++	udph = udp_hdr(skb);
++
++  // Extract source and destination ports
++  src_port = ntohs(udph->source);
++  dst_port = ntohs(udph->dest);
++
++	// We don't care about kernel sending messages to itself
++	// Later, we would need to strace the harness to find the
++	// port is 6118
++	if (dst_port == 6118 && src_port != dst_port) {
++		spin_lock_irqsave(&mylock, flags);
++		ctr = ctr + 1;
++		local_ctr = ctr % 4 + 1;
++		spin_unlock_irqrestore(&mylock, flags);
++		// printk("~~~~ UDP recv [%d] <%d>~~~~~~~ %u --> %u\n", current->pid, local_ctr, src_port, dst_port);
++
++		kcov_remote_start(kcov_remote_handle(KCOV_SUBSYSTEM_NET, local_ctr));
++	}
++
++	if (likely(!udp_unexpected_gso(sk, skb))) {
++		ret = udp_queue_rcv_one_skb(sk, skb);
++
++		if (dst_port == 6118 && src_port != dst_port) {
++			kcov_remote_stop();
++		  // printk("~~~~ UDP done recv [%d] <%d>~~~~~~~\n", current->pid, local_ctr);
++		}
++		return ret;
++	}
+ 
+ 	BUILD_BUG_ON(sizeof(struct udp_skb_cb) > SKB_GSO_CB_OFFSET);
+ 	__skb_push(skb, -skb_mac_offset(skb));
+@@ -2251,6 +2289,10 @@ static int udp_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
+ 		if (ret > 0)
+ 			ip_protocol_deliver_rcu(dev_net(skb->dev), skb, ret);
+ 	}
++	if (dst_port == 6118 && src_port != dst_port) {
++		kcov_remote_stop();
++		// printk("~~~~ UDP done recv [%d] <%d>~~~~~~~\n", current->pid, local_ctr);
++	}
+ 	return 0;
+ }
+ 

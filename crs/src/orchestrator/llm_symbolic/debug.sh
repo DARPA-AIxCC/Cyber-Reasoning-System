@@ -1,0 +1,1 @@
+timeout -k 5m 1h python3 -m tss.aicc.sym_llm -l /home/martin/Darpa/crs-sandbox/crs/src/orchestrator/composite_workspace/run-f571e312/artifacts/analyze/llmsymbolic-f571e312/sources.txt -d /home/martin/Darpa/crs-sandbox/crs/src/orchestrator/composite_workspace/run-f571e312/artifacts/analyze/llmsymbolic-f571e312

@@ -1,0 +1,21 @@
+diff --git a/include/linux/kcov.h b/include/linux/kcov.h
+index 55dc338f6..c9d1fef5b 100644
+--- a/include/linux/kcov.h
++++ b/include/linux/kcov.h
+@@ -72,6 +72,16 @@ static inline void kcov_remote_stop_softirq(void)
+ 		kcov_remote_stop();
+ }
+ 
++void notrace kcov_rewind(unsigned long *area);
++void kcov_noop(void);
++void kcov_ivshmem_write_barrier(struct task_struct *t, unsigned long delimiter);
++void inner_kcov_ivshmem_start(int write_barrier);
++void kcov_ivshmem_start(void);
++void kcov_ivshmem_start_nobarrier(void);
++void inner_kcov_ivshmem_stop(int write_barrier);
++void kcov_ivshmem_stop_nobarrier(void);
++void kcov_ivshmem_stop(void);
++
+ #else
+ 
+ static inline void kcov_task_init(struct task_struct *t) {}

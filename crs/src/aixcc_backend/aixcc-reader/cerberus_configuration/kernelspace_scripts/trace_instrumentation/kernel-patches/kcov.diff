@@ -1,0 +1,18 @@
+diff --git a/kernel/kcov.c b/kernel/kcov.c
+index e5cd09fd8..85c79b817 100644
+--- a/kernel/kcov.c
++++ b/kernel/kcov.c
+@@ -608,8 +608,12 @@ static int kcov_ioctl_locked(struct kcov *kcov, unsigned int cmd,
+ 	case KCOV_DISABLE:
+ 		/* Disable coverage for the current task. */
+ 		unused = arg;
+-		if (unused != 0 || current->kcov != kcov)
++		if (unused != 0)
+ 			return -EINVAL;
++
++		if (current->kcov != kcov)
++			current->kcov = kcov;
++
+ 		t = current;
+ 		if (WARN_ON(kcov->t != t))
+ 			return -EINVAL;
