@@ -1,0 +1,35 @@
+#!/bin/bash
+
+BATCH_SIZE=$AIxCC_BATCH_SIZE
+INDEX_FILE=$AIxCC_INDEX_FILE
+TMP_DIR=$AIxCC_TMP_DIR
+OUT_DIR=$AIxCC_OUT_DIR
+
+# Create folders if needed
+if [ ! -d "$TMP_DIR" ]; then
+    mkdir -p "$TMP_DIR"
+    echo "Folder '$TMP_DIR' created."
+fi
+
+if [ ! -d "$OUT_DIR" ]; then
+    mkdir -p "$OUT_DIR"
+    echo "Folder '$OUT_DIR' created."
+fi
+
+
+# Read the current test index from a file and increase it by 1
+# Copy the generated test case (fuzz.bin) to the temporary folder
+read i < $INDEX_FILE
+i=`expr $i + 1`
+
+echo "Fuzzing in progress. Current TEST_INDEX=$i"
+echo $i > $INDEX_FILE
+cp fuzz.bin $TMP_DIR/id:$i
+
+# Run Adaptive Random Testing component for seed selection 
+# if the specified batch size is reached
+if [ $(($i % $BATCH_SIZE)) -eq 0 ]; then
+    python3 ART.py $TMP_DIR $OUT_DIR
+    echo "Completed test selection for this batch. Delete the temp dir."
+    rm -rf $TMP_DIR > /dev/null
+fi

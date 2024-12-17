@@ -1,0 +1,18 @@
+#!/bin/bash
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+if ! command -v pypy3 &> /dev/null
+then
+    if ! command -v python3 &> /dev/null
+    then
+      $SCRIPT_DIR/Valkyrie.bin "$@"
+    else
+      python3 "$(dirname $SCRIPT_DIR)/Valkyrie.py" "$@"
+    fi
+else
+  pypy3 "$(dirname $SCRIPT_DIR)/Valkyrie.py" "$@"
+fi
+
+
+
+

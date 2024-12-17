@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Peach xmlns="http://peachfuzzer.com/2012/Peach" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://peachfuzzer.com/2012/Peach /peach/peach.xsd">
+    <Defaults>
+        <Number signed="false" />
+    </Defaults>
+
+    <DataModel name="SendData">
+        <Number name="PacketSize" size="32">
+            <Relation type="size" of="PacketData" />
+        </Number>
+        <Number name="Flags" size="32" />
+        <Blob name="PacketData" />
+    </DataModel>
+
+    <DataModel name="SendNetlinkPacket">
+        <Number name="MessageType" size="32" />
+        <Number name="MessageFlags" size="32" />
+        <Number name="NetlinkProtocol" size="32" />
+        <Number name="PacketSize" size="32">
+            <Relation type="size" of="PacketData" />
+        </Number>
+        <Blob name="PacketData" />
+    </DataModel>
+
+    <DataModel name="Command">
+        <Number name="CommandType" size="32" />
+        <Choice name="CommandData" maxOccurs="1000">
+            <Block name="SendData" ref="SendData" />
+            <Block name="SendNetlinkPacket" ref="SendNetlinkPacket" />
+        </Choice>
+    </DataModel>
+
+    <DataModel name="HarnessInput">
+        <Number name="CommandCount" size="32" />
+        <Block name="Commands" minOccurs="0" maxOccurs="1000">
+            <Block name="Command" ref="Command" />
+        </Block>
+    </DataModel>
+
+    <StateModel name="TheState" initialState="Initial">
+        <State name="Initial">
+            <Action type="output">
+                <DataModel ref="HarnessInput" />
+                <Data fileName="/dev/null" />
+            </Action>
+            <Action type="close" />
+        </State>
+    </StateModel>
+
+    <Test name="Default">
+        <StateModel ref="TheState" />
+        <Publisher class="File">
+            <Param name="FileName" value="repaired" />
+        </Publisher>
+        <Logger class="Filesystem">
+            <Param name="Path" value="logs" />
+        </Logger>
+    </Test>
+</Peach>

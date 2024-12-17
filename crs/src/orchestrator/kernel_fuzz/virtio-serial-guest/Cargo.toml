@@ -1,0 +1,11 @@
+[package]
+name = "guest"
+version = "0.0.0"
+authors = ["Daniel Schemmel <daniel@schemmel.net"]
+description = "Communicate with a character device, as used in the guest side of a virtio-serial device."
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+nix = { version = "0.29", features = ["fs"] }

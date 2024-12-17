@@ -12,7 +12,8 @@ on:
 
 jobs:
   run-lint:
-    runs-on: large-runner
+    runs-on:
+      group: large-runners
     permissions:
       contents: read
       packages: read
@@ -20,10 +21,11 @@ jobs:
       statuses: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           # Full git history is needed to get a proper list of changed files within `super-linter`
           fetch-depth: 0
+          lfs: true
       - name: Lint Code Base
         uses: github/super-linter@v6
         env:
@@ -37,10 +39,13 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
   run-loadtests:
-    runs-on: large-runner
+    runs-on:
+      group: large-runners
     steps:
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Install dependencies
         run: |
@@ -106,16 +111,227 @@ jobs:
       - name: Show help
         run: make help
 
-  run-e2e-test:
-    runs-on: large-runner
+  run-validate-crs-submissions:
+    env:
+      AUDIT_LOG: ./capi_logs/audit.log
+      MAX_SECONDS: 600
+      POLL_SECONDS: 5
+    if: ${{ github.actor != 'robothing[bot]' }}
+    runs-on:
+      group: large-runners
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install jq
+          sudo curl -L "https://github.com/docker/compose/releases/download/v2.26.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+          sudo curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.22.0/kind-linux-amd64
+          curl https://mise.jdx.dev/install.sh | sh
+          echo "$HOME/.local/share/mise/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/share/mise/shims" >> "$GITHUB_PATH"
+          mise install
+
+      - name: Check required files
+        shell: bash
+        run: |
+          if [ ! -f "${{ github.workspace }}/cp_config.yaml" ]; then
+            echo "Required file not found: cp_config.yaml"
+            exit 1
+          fi
+          if [ ! -f "${{ github.workspace }}/kompose_competition_overrides.yaml" ]; then
+            echo "Required file not found: kompose_competition_overrides.yaml"
+            exit 1
+          fi
+          if [ ! -f "${{ github.workspace }}/kompose_development_overrides.yaml" ]; then
+            echo "Required file not found: kompose_development_overrides.yaml"
+            exit 1
+          fi
+
+          eval_vol_count_dev=$(yq eval '.volumes | length == 3' kompose_development_overrides.yaml)
+          eval_vol_count_comp=$(yq eval '.volumes | length == 3' kompose_competition_overrides.yaml)
+
+          eval_services_dev=$(yq eval '.services | (has("dind") and has("iapi") and has("capi"))' kompose_development_overrides.yaml)
+          eval_services_comp=$(yq eval '.services | has("dind")' kompose_competition_overrides.yaml)
+
+          eval_dind_dev=$(yq eval '(
+            .services | to_entries[] |
+            select(.key == "dind") |
+            select(.value.volumes != null) | .value.volumes | all_c(. == "dind_cache:/var/lib/docker" or . == "crs_scratch:/crs_scratch")
+          ) | [.]' kompose_development_overrides.yaml | yq eval 'all')
+
+          eval_dind_comp=$(yq eval '(
+            .services | to_entries[] |
+            select(.key == "dind") |
+            select(.value.volumes != null) | .value.volumes | all_c(. == "dind_cache:/var/lib/docker" or . == "crs_scratch:/crs_scratch")
+          ) | [.]' kompose_competition_overrides.yaml | yq eval 'all')
+
+          eval_volume_dev=$(yq eval '(
+            .services | to_entries[] |
+            select(.key != "dind") |
+            select(.value.volumes != null) | .value.volumes | all_c(. == "cp_root:/cp_root" or . == "crs_scratch:/crs_scratch")
+          ) | [.]' kompose_development_overrides.yaml | yq eval 'all')
+
+          eval_volume_comp=$(yq eval '(
+            .services | to_entries[] |
+            select(.key != "dind") |
+            select(.value.volumes != null) | .value.volumes | all_c(. == "cp_root:/cp_root" or . == "crs_scratch:/crs_scratch")
+          ) | [.]' kompose_competition_overrides.yaml | yq eval 'all')
+
+          EXIT=0
+          if [ "$eval_vol_count_dev" = "false" ]; then
+            echo "Extra volumes found in kompose_development_overrides.yaml.  Please remove them."
+            EXIT=1
+          fi
+          if [ "$eval_vol_count_comp" = "false" ]; then
+            echo "Extra volumes found in kompose_competition_overrides.yaml.  Please remove them."
+            EXIT=1
+          fi
+          if [ "$eval_dind_dev" = "false" ]; then
+            echo "dind_cache not found for dind in kompose_development_overrides.yaml.  Please add it."
+            EXIT=1
+          fi
+          if [ "$eval_dind_comp" = "false" ]; then
+            echo "dind_cache not found for dind in kompose_competition_overrides.yaml.  Please add it."
+            EXIT=1
+          fi
+          if [ "$eval_services_dev" = "false" ]; then
+            echo "Required services not found in kompose_development_overrides.yaml.  Please add them (dind, capi, iapi)."
+            EXIT=1
+          fi
+          if [ "$eval_services_comp" = "false" ]; then
+            echo "Required services not found in kompose_competition_overrides.yaml.  Please add them (dind)."
+            EXIT=1
+          fi
+          if [ "$eval_volume_dev" = "false" ]; then
+            echo "Other volumes specified in service in kompose_development_overrides.yaml.  Please remove them."
+            EXIT=1
+          fi
+          if [ "$eval_volume_comp" = "false" ]; then
+            echo "Other volumes specified in service in kompose_competition_overrides.yaml.  Please remove them."
+            EXIT=1
+          fi
+
+          exit $EXIT
+
+
+      - name: Move sandbox/example.env to sandbox/env
+        run: mv sandbox/example.env sandbox/env
+
+      - name: Set env file up for real run
+        run: |
+          .github/scripts/set-env.sh AIXCC_MOCK_MODE false
+          .github/scripts/set-env.sh ANTHROPIC_API_KEY "${{ secrets.ANTHROPIC_API_KEY }}"
+          .github/scripts/set-env.sh AZURE_API_BASE "${{ secrets.AZURE_API_BASE }}"
+          .github/scripts/set-env.sh AZURE_API_KEY "${{ secrets.AZURE_API_KEY }}"
+          .github/scripts/set-env.sh GEMINI_API_KEY "${{ secrets.GEMINI_API_KEY }}"
+          .github/scripts/set-env.sh GITHUB_TOKEN "${{ github.token }}"
+          .github/scripts/set-env.sh GITHUB_USER gha
+          .github/scripts/set-env.sh OPENAI_API_KEY "${{ secrets.OPENAI_API_KEY }}"
+
+      - name: Add SSH key
+        env:
+            SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+        run: |
+            mkdir -p /home/runner/.ssh
+            ssh-keyscan github.com >> /home/runner/.ssh/known_hosts
+            echo "${{ secrets.CRS_EVALUATOR_EXEMPLAR_CLONE_SSH_KEY }}" > /home/runner/.ssh/github_actions
+            chmod 600 /home/runner/.ssh/github_actions
+            ssh-agent -a "$SSH_AUTH_SOCK" > /dev/null
+            ssh-add /home/runner/.ssh/github_actions
+
+      - name: Docker Registry Login
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: gha
+          password: ${{ github.token }}
+
+      - name: Run Docker Compose
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+        run: |
+          make up
+
+      - name: Wait for audit log to appear
+        run: |
+          CURRENT_SECONDS=0
+
+          until [ -f "$AUDIT_LOG" ]; do
+              echo "Waiting for audit log"
+              sleep "$POLL_SECONDS"
+              ((CURRENT_SECONDS += POLL_SECONDS)) && ((CURRENT_SECONDS == MAX_SECONDS)) && echo "Timed out while waiting for audit log" && exit 1
+          done
+
+          echo "Audit log appeared"
+
+      - name: Validate vulnerability discovery
+        run: |
+          CURRENT_SECONDS=0
+
+          while [ -z "$(jq <"$AUDIT_LOG" '. | select( .event_type | match("vd_submission_success"))')" ]; do
+              echo "Waiting for VDS success event"
+              sleep "$POLL_SECONDS"
+              ((CURRENT_SECONDS += POLL_SECONDS)) && ((CURRENT_SECONDS == MAX_SECONDS)) && echo "CRS did not submit a working VDS within the time limit" && exit 1
+          done
+
+          echo "CRS submitted a working VDS within the time limit"
+
+      - name: Validate generated patch
+        run: |
+          CURRENT_SECONDS=0
+
+          while [ -z "$(jq <"$AUDIT_LOG" '. | select( .event_type | match("gp_submission_success"))')" ]; do
+              echo "Waiting for GP success event"
+              sleep "$POLL_SECONDS"
+              ((CURRENT_SECONDS += POLL_SECONDS)) && ((CURRENT_SECONDS == MAX_SECONDS)) && echo "CRS did not submit a working GP within the time limit" && exit 1
+          done
+
+          echo "CRS submitted a working GP within the time limit"
+
+      - name: Show CRS submission log
+        run: |
+          jq -rsc '. | .[] | select(
+              (.event_type == "gp_submission") or
+              (.event_type == "gp_submission_success") or
+              (.event_type == "gp_submission_invalid") or
+              (.event_type == "gp_submission_failed") or
+              (.event_type == "vd_submission") or
+              (.event_type == "vd_submission_success") or
+              (.event_type == "vd_submission_invalid") or
+              (.event_type == "vd_submission_failed")
+          ) | "\(.timestamp)\t\(.event_type)"' "$AUDIT_LOG" | column -t -s $'\t'
+        if: ${{ always() }}
+
+      - name: Print CRS logs
+        run: make logs-crs-nofollow
+        if: ${{ always() }}
+
+      - name: Print all logs from docker compose
+        run: make logs-nofollow
+        if: ${{ failure() }}
+
+
+  run-mock-crs:
+    runs-on:
+      group: large-runners
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
           sudo curl -L "https://github.com/docker/compose/releases/download/v2.26.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
           sudo chmod +x /usr/local/bin/docker-compose
           sudo curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.22.0/kind-linux-amd64
@@ -134,11 +350,6 @@ jobs:
       - name: Move sandbox/example.env to sandbox/env
         run: mv sandbox/example.env sandbox/env
 
-      - name: Disable mock mode
-        run: |
-          sed -i '/AIXCC_MOCK_MODE=*/d' sandbox/env
-          echo "AIXCC_MOCK_MODE=false" >> sandbox/env
-
       - name: Add SSH key
         env:
             SSH_AUTH_SOCK: /tmp/ssh_agent.sock
@@ -149,6 +360,7 @@ jobs:
             chmod 600 /home/runner/.ssh/github_actions
             ssh-agent -a "$SSH_AUTH_SOCK" > /dev/null
             ssh-add /home/runner/.ssh/github_actions
+
 
       - name: Docker Registry Login
         uses: docker/login-action@v1
@@ -168,91 +380,20 @@ jobs:
         env:
           SSH_AUTH_SOCK: /tmp/ssh_agent.sock
         run: |
-          make up
-
-      - name: Check audit log contents
-        run: |
-          MAX_SECONDS=600
-          CURRENT_SECONDS=0
-          AUDIT_LOG="./capi_logs/audit.log"
-          POLL_SECONDS=5
-
-          until [ -f $AUDIT_LOG ]; do
-              echo "Waiting for audit log"
-              sleep $POLL_SECONDS
-              ((CURRENT_SECONDS += POLL_SECONDS)) && ((CURRENT_SECONDS == MAX_SECONDS)) && echo "timeout while waiting for audit log to start" && exit 1
-          done
-
-          while [ -z "$(jq <$AUDIT_LOG '. | select( .event_type | match("vd_submission_success"))')" ]; do
-              echo "Waiting for VDS accepted event"
-              sleep $POLL_SECONDS
-              ((CURRENT_SECONDS += POLL_SECONDS)) && ((CURRENT_SECONDS == MAX_SECONDS)) && echo "timeout while waiting for success event" && exit 1
-          done
-
-          echo "CRS passed"
-
-      - name: Show logs
-        run: make logs
-        if: ${{ failure() }}
-
-
-  run-mock-crs:
-    runs-on: large-runner
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v3
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo curl -L "https://github.com/docker/compose/releases/download/v2.26.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-          sudo chmod +x /usr/local/bin/docker-compose
-          sudo curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.22.0/kind-linux-amd64
-          curl https://mise.jdx.dev/install.sh | sh
-          echo "$HOME/.local/share/mise/bin" >> "$GITHUB_PATH"
-          echo "$HOME/.local/share/mise/shims" >> "$GITHUB_PATH"
-          mise install
-
-      - name: Check required files
-        run: |
-          if [ ! -f "${{ github.workspace }}/cp_config.yaml" ]; then
-            echo "Required file not found: cp_config.yaml"
-            exit 1
-          fi
-
-      - name: Move sandbox/example.env to sandbox/env
-        run: mv sandbox/example.env sandbox/env
-
-      - name: Add SSH key
-        env:
-            SSH_AUTH_SOCK: /tmp/ssh_agent.sock
-        run: |
-            mkdir -p /home/runner/.ssh
-            ssh-keyscan github.com >> /home/runner/.ssh/known_hosts
-            echo "${{ secrets.CRS_EVALUATOR_EXEMPLAR_CLONE_SSH_KEY }}" > /home/runner/.ssh/github_actions
-            chmod 600 /home/runner/.ssh/github_actions
-            ssh-agent -a "$SSH_AUTH_SOCK" > /dev/null
-            ssh-add /home/runner/.ssh/github_actions
-
-
-      - name: Docker Registry Login
-        uses: docker/login-action@v1
-        with:
-          registry: ghcr.io
-          username: gha
-          password: ${{ github.token }}
-
-      - name: Run Docker Compose
-        env:
-          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
-        run: |
           make mock-crs/up-attached
 
   run-kubernetes:
-    runs-on: large-runner
+    if: ${{ github.actor != 'robothing[bot]' }}
+    runs-on:
+      group: large-runners
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Install dependencies
         run: |
@@ -293,6 +434,13 @@ jobs:
           registry: ghcr.io
           username: gha
           password: ${{ github.token }}
+
+      - name: Set up GHCR auth tokens
+        run: |
+          sed -i '/GITHUB_TOKEN=*/d' sandbox/env
+          sed -i '/GITHUB_USER=*/d' sandbox/env
+          echo "GITHUB_TOKEN=${{ github.token }}" >> sandbox/env
+          echo "GITHUB_USER=gha" >> sandbox/env
 
       - name: Run Local Helm & Kubernetes Validation
         env:

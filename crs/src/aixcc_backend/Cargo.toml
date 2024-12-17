@@ -1,0 +1,9 @@
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace]
+resolver = "2"
+
+members = [ "aixcc-reader",
+    "crates/metadata_extraction", "iapi_client", "iapi_mock_server", "crates/lib-iapi", "aixcc_status_server", "iapi_proxy_server"
+]

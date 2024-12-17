@@ -1,0 +1,24 @@
+{
+  "cp_name": "Mock CP",
+  "language": "C",
+  "docker_image": "mock-cp",
+  "cp_sources": [
+    {
+      "address": "git@github.com:aixcc-sc/mock-cp-src.git",
+      "source_ref": "v1.0.0",
+      "path": "samples",
+      "artifacts": null
+    }
+  ],
+  "sanitizers": {
+    "id_1": "AddressSanitizer: global-buffer-overflow",
+    "id_2": "AddressSanitizer: SEGV"
+  },
+  "harnesses": {
+    "id_1": {
+      "name": "stdin_harness.sh",
+      "source": "src/test/stdin_harness.sh",
+      "binary": "out/stdin_harness.sh"
+    }
+  }
+}
