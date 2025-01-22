@@ -2,6 +2,7 @@ Levenshtein==0.25.1
 numpy==1.24.4
 python-Levenshtein==0.25.1
 rapidfuzz==3.9.3
-litellm
+litellm==1.50.0
+tokenizers==0.15.2
 flask
 grammarinator
