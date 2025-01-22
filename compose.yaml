@@ -33,7 +33,7 @@ services:
       - development
       - competition
     # Competitors: You MUST change crs-sandbox to your repo name, change replace-me-crs to your image name, and be versioned pinned to the release intended for competition.
-    image: ghcr.io/aixcc-sc/crs-sandbox/asc-crs-healing-touch:v0.0.3
+    image: ghcr.io/aixcc-sc/crs-sandbox/asc-crs-healing-touch:v1.0.0
     # Competitors: All services that are expected to have a clean exit must have restart: on-failure
     restart: on-failure
     build:
@@ -58,6 +58,18 @@ services:
     depends_on:
       iapi:
         condition: service_healthy
+    volumes:
+      #################################################################################
+      ### THESE VOLUMES MUST BE INCLUDED WITHOUT MODIFICATION TO ALL CRS CONTAINERS ###
+      # A CRS MUST copy CP repositories from `AIXCC_CP_ROOT` to a writable location such as
+      # `AIXCC_CRS_SCRATCH_SPACE` for building and testing CPs.
+      # A CRS MUST not modify settings within this section.
+      - type: bind
+        source: ${PWD}/crs_scratch
+        target: /crs_scratch
+        bind:
+          propagation: rshared
+      - ./cp_root:/cp_root
   crs-backend:
     networks:
       - crs-internal  # Competitors: You MUST use this network only for any containers you add to your CRS.

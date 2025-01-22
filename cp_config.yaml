@@ -8,6 +8,6 @@
 # of the specified repo from "url".
 
 cp_targets:
-    mock-cp:
-        url: git@github.com:aixcc-sc/mock-cp.git
-        ref: v2.0.3
+    nginx:
+        url: git@github.com:aixcc-public/challenge-004-nginx-cp.git
+        ref: v1.0.3
