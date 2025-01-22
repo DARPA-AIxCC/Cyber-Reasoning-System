@@ -27,15 +27,20 @@ include:
 ### Additional services are welcomed, just make sure to use the supplied variables and profile names
 services:
   crs:
+    labels:
+      kompose.serviceaccount-name: "crs"  # make sure to use this label if you want your CRS to have K8S API access
     networks:
       - crs-internal  # Competitors: You MUST use this network only for any containers you add to your CRS.
     profiles:
       - development
       - competition
+    privileged: true
     # Competitors: You MUST change crs-sandbox to your repo name, change replace-me-crs to your image name, and be versioned pinned to the release intended for competition.
     image: ghcr.io/aixcc-sc/crs-sandbox/asc-crs-healing-touch:v1.0.0
     # Competitors: All services that are expected to have a clean exit must have restart: on-failure
-    restart: on-failure
+    restart: always
+    expose:
+      - "9044"
     build:
       context: .  # Note that this uses the base folder for context, you may not need this for your CRS
       # Competitors: You MUST change to your Dockerfile location for your CRS.
@@ -54,10 +59,45 @@ services:
       - AIXCC_CRS_SCRATCH_SPACE=/crs_scratch
       - LITELLM_KEY=sk-1234
       - HEALING_TOUCH_BACKEND=http://crs-backend:9042
-      - HT_DEV_MODE=0
+      - HEALING_TOUCH_IAPI=http://crs-iapi-cache:8080
+      - AFL_SMARTER=http://afl-smarter:9043
+      - CRS=http://crs:9044
+      - HT_DEV_MODE=1
     depends_on:
       iapi:
         condition: service_healthy
+      crs-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:9044/health"]
+      interval: 5s
+      retries: 10
+      start_period: 10s
+      timeout: 5s
+  afl-smarter:
+    labels:
+      kompose.service.accountname: "crs"  # make sure to use this label if you want your CRS to have K8S API access
+    networks:
+      - crs-internal  # Competitors: You MUST use this network only for any containers you add to your CRS.
+    expose:
+      - "9043"
+    profiles:
+      - development
+      - competition
+    privileged: true
+    # Competitors: You MUST change crs-sandbox to your repo name, change replace-me-crs to your image name, and be versioned pinned to the release intended for competition.
+    image: ghcr.io/aixcc-sc/asc-crs-healing-touch/healing-touch-afl-smarter:${RELEASE_TAG-v1.2.5}
+    # Competitors: All services that are expected to have a clean exit must have restart: on-failure
+    restart: on-failure
+    build:
+      context: crs/src/afl_smarter/  # Note that this uses the base folder for context, you may not need this for your CRS
+      # Competitors: You MUST change to your Dockerfile location for your CRS.
+      # This points to the mock_crs by default.
+      dockerfile: Dockerfile
+      # Competitors: You will need to change this command to trigger your CRS.
+      # If you have multiple containers for your CRS you must design your own
+      # orchestration and sychronization mechanisms.
+    command: ["./run.sh"]
     volumes:
       #################################################################################
       ### THESE VOLUMES MUST BE INCLUDED WITHOUT MODIFICATION TO ALL CRS CONTAINERS ###
@@ -70,7 +110,30 @@ services:
         bind:
           propagation: rshared
       - ./cp_root:/cp_root
+      #################################################################################
+    environment:
+      # These values will be modified automatically at competition time
+      - DOCKER_HOST=tcp://dind:2375
+      - AIXCC_LITELLM_HOSTNAME=http://litellm
+      - AIXCC_API_HOSTNAME=http://iapi:8080
+      - AIXCC_CP_ROOT=/cp_root
+      - AIXCC_CRS_SCRATCH_SPACE=/crs_scratch
+      - LITELLM_KEY=sk-1234
+      - HEALING_TOUCH_IAPI=http://crs-iapi-cache:8080
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:9043/health"]
+      interval: 5s
+      retries: 10
+      start_period: 10s
+      timeout: 5s
+    depends_on:
+      iapi:
+        condition: service_healthy
+      load-cp-images:
+        condition: service_completed_successfully
   crs-backend:
+    labels:
+      kompose.service.accountname: "crs"  # make sure to use this label if you want your CRS to have K8S API access
     networks:
       - crs-internal  # Competitors: You MUST use this network only for any containers you add to your CRS.
     expose:
@@ -78,6 +141,7 @@ services:
     profiles:
       - development
       - competition
+    privileged: true
     # Competitors: You MUST change crs-sandbox to your repo name, change replace-me-crs to your image name, and be versioned pinned to the release intended for competition.
     image: ghcr.io/aixcc-sc/crs-sandbox/crs-backend:v1.0.0
     # Competitors: All services that are expected to have a clean exit must have restart: on-failure
@@ -123,7 +187,8 @@ services:
     depends_on:
       iapi:
         condition: service_healthy
-
+      load-cp-images:
+        condition: service_completed_successfully
 #############
 ### CUSTOMIZE
 #############
