@@ -32,7 +32,16 @@ RUN dpkg --add-architecture i386 && \
     mono-complete \
     software-properties-common
 
-    # Add a new user ubuntu, pass: ubuntu
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV CARGO_HOME=/usr/local/cargo
+ENV PATH="/usr/local/cargo/bin:$PATH"
+
+RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
+
+
+RUN rustup self update
+
+# Add a new user ubuntu, pass: ubuntu
 RUN groupadd ubuntu && \
     useradd -rm -d /home/ubuntu -s /bin/bash -g ubuntu -G sudo -u 1000 ubuntu -p "$(openssl passwd -1 ubuntu)"
 
@@ -55,6 +64,7 @@ COPY test_monitor $WORKDIR/test_monitor
 COPY run.sh ${WORKDIR}/run.sh
 COPY peach-3.0.202.patch ${WORKDIR}/peach-3.0.202.patch
 COPY cfg_fuzzing $WORKDIR/cfg_fuzzing
+
 
 # Install packages required by ART.py
 RUN pip3 install -r $WORKDIR/requirements.txt

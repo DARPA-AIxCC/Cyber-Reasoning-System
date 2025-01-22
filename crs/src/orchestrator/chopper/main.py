@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Chopper is a tool that uses git bisect to find the first bad commit.
 """
@@ -7,297 +8,222 @@ import os
 import subprocess
 import sys
 import traceback
-import re
-from os.path import join as pjoin
-from typing import Tuple
-from git import Repo
-from oracle import Action, decide_pass_fail, bisect_entry
-from util import cd, run_cmd_in_dir
+from typing import Optional, Set, Tuple
+from pathlib import Path
+from tqdm import tqdm
+
+MAX_BINARY_STEPS = 20  # Maximum binary search attempts before falling back to linear
 
 
-def get_curr_commit_hash(cp_src: str) -> str:
-    """
-    Get the current commit hash.
-    """
-    with cd(cp_src):
-        cp = subprocess.run("git rev-parse HEAD", shell=True, stdout=subprocess.PIPE)
-    return cp.stdout.decode("utf-8").strip()
+class CommitTester:
+    def __init__(
+        self,
+        cp_src: str,
+        cp_path: str,
+        build_script: str,
+        test_script: str,
+        output_dir: str,
+    ):
+        self.cp_src = cp_src
+        self.cp_path = cp_path
+        self.build_script = build_script
+        self.test_script = test_script
+        self.output_dir = output_dir
+        self.tested_commits = {}
 
+    def run_cmd(self, cmd: str, cwd: str) -> subprocess.CompletedProcess:
+        """Run a command in specified directory and return the result"""
+        return subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True)
 
-def get_first_commit_hash(cp_src: str) -> str:
-    """
-    Get the first commit hash.
-    """
-    with cd(cp_src):
-        cp = subprocess.run(
-            "git rev-list --max-parents=0 HEAD", shell=True, stdout=subprocess.PIPE
-        )
-    return cp.stdout.decode("utf-8").strip()
+    def get_commit_list(self) -> list[str]:
+        """Get list of all commits from newest to oldest"""
+        result = self.run_cmd("git log --format=%H", self.cp_src)
+        return result.stdout.strip().split("\n")
 
+    def checkout_commit(self, commit: str) -> bool:
+        """Checkout specific commit"""
+        result = self.run_cmd(f"git checkout {commit}", self.cp_src)
+        return result.returncode == 0
 
-def repo_stash_checkout(cp_src: str, commit_hash: str):
-    """
-    Stash changes and checkout the commit hash.
+    def test_commit(self, commit: str) -> Tuple[bool, bool]:
+        """
+        Test a specific commit
+        Returns: (can_build, is_good)
+        - can_build: Whether commit builds successfully
+        - is_good: Whether tests pass (commit is "good")
+        """
+        # Check if we've already tested this commit
+        if commit in self.tested_commits:
+            return self.tested_commits[commit]
 
-    We just stash to make sure the checkout does not fail.
-    NOTE: the stash will not be popped.
-    """
-    run_cmd_in_dir("git stash", cp_src)
-    run_cmd_in_dir(f"git checkout {commit_hash}", cp_src)
+        if not self.checkout_commit(commit):
+            self.tested_commits[commit] = (False, False)
+            return False, False
 
+        # Try to build
+        build_result = self.run_cmd(self.build_script, self.cp_path)
+        # print(build_result)
+        if build_result.returncode != 0:
+            print(f"Build failed for commit {commit[:8]}")
+            self.tested_commits[commit] = (False, False)
+            return False, False
 
-def run_bisect_linear(
-    cp_src: str,
-    cp_path: str,
-    bad_commit: str,
-    build_script: str,
-    test_script: str,
-    output_dir: str,
-    crash_location: str,
-    pattern: str,
-    solo_repo: bool = True,
-) -> str | None:
-    """
-    Returns:
-        - hash of the first bad commit if found
-        - None if the bisect fails
-    """
-    script_dir = os.path.dirname(os.path.realpath(__file__))
-    script_for_bisect = pjoin(script_dir, "oracle.py")
+        # Run test
+        test_result = self.run_cmd(self.test_script, self.cp_path)
 
-    # Check if the repository loaded correctly
-    repo = Repo(cp_src)
-    bug_introducing_commits = []
-    if not repo.bare:
-        print("Repo at {} successfully loaded.".format(cp_src))
-        # List all commits sorted by date (most recent first)
-        commits = list(
-            repo.iter_commits()
-        )  # or use 'main' depending on your branch name
-        commits.sort(key=lambda commit: commit.committed_datetime, reverse=True)
+        # Check output directory for test results
+        output_files = list(Path(self.output_dir).glob("**/*stderr.log"))
+        if not output_files:
+            self.tested_commits[commit] = (True, False)
+            return True, False
 
-        # Check if last commit is also faulty, then
-        last_commit = commits[-1]
-        repo.git.checkout(last_commit.hexsha)
-        # query oracle
-        ret = bisect_entry(
-            build_script, test_script, cp_path, output_dir, crash_location, pattern
-        )
-        if (
-            ret == 1 and not solo_repo
-        ):  # In the case of multiple repos, ignore this repo as probably it does not exhibit the error if the commit is failing
-            return None
+        latest_output = max(output_files, key=lambda p: p.stat().st_mtime)
+        test_output = latest_output.read_text()
 
-        has_good_commit = False
-        # Print commit details
-        for commit in commits:
-            # check out
-            repo.git.checkout(commit.hexsha)
-            # query oracle
-            ret = bisect_entry(
-                build_script, test_script, cp_path, output_dir, crash_location, pattern
-            )
-            if ret == 0:
-                has_good_commit = True
-                # good commit
-                break
-            elif ret == 1:
-                # bad commit
-                bug_introducing_commits.append(commit.hexsha)
+        # Commit is "good" if test passes
+        is_good = test_result.returncode == 0 and "FAILED" not in test_output
+        self.tested_commits[commit] = (True, is_good)
+        return True, is_good
+
+    def binary_search_good_commit(
+        self, commits: list[str]
+    ) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        """
+        Find the transition point between good and bad commits
+        Returns: (bad_commit, good_commit, bug_inducing_commit)
+        - bad_commit: Known bad commit (HEAD)
+        - good_commit: Last known good commit
+        - bug_inducing_commit: First bad commit after good_commit (good_commit + 1)
+        """
+
+        print(f"In commit list: {commits[0]}, last element: {commits[-1]}")
+        steps = 0
+        left, right = len(commits) - 1, 0
+        last_good_commit = None
+        head_commit = commits[0]  # Store HEAD commit
+
+        self.tested_commits = {}  # Dictionary mapping commit -> (can_build, is_good)
+
+        print("\nBinary Search Debug:")
+        print("==================")
+
+        while steps < MAX_BINARY_STEPS and left >= right:
+            mid = (left + right) // 2
+            commit = commits[mid]
+
+            if commit in self.tested_commits:
+                can_build, is_good = self.tested_commits[commit]
             else:
-                # some other cases, skipped
-                pass
+                print(f"\nStep {steps + 1}")
+                print(f"Checking commit {commit[:8]} (#{len(commits) - mid})")
+                print(f"Search range: commits[{right}:{left}]")
+                can_build, is_good = self.test_commit(commit)
+                print(f"Can build: {can_build}, Is good: {is_good}")
 
-        if solo_repo:
-            if len(bug_introducing_commits) > 0:
-                return bug_introducing_commits[-1]
-            return None
-        else:
-            if has_good_commit:
-                if len(bug_introducing_commits) > 0:
-                    return bug_introducing_commits[-1]
-                return None
+            if not can_build:
+                print("Build failed -> Moving left")
+                left = mid - 1
+            elif is_good:
+                last_good_commit = commit
+                # Check if next commit exists and is bad - we found the transition
+                if mid + 1 < len(commits):
+                    next_commit = commits[mid + 1]
+                    if next_commit in self.tested_commits:
+                        next_can_build, next_is_good = self.tested_commits[next_commit]
+                    else:
+                        next_can_build, next_is_good = self.test_commit(next_commit)
+
+                    if next_can_build and not next_is_good:
+                        print(f"\nFound transition point!")
+                        print(f"Last good commit: {commit[:8]}")
+                        print(f"First bad commit: {next_commit[:8]}")
+                        return head_commit, commit, next_commit
+
+                print("Test passed -> Moving left")
+                left = mid - 1
             else:
-                # Either this is not the faulty repo
-                # or the bug is universal across the search space
-                return None
-    else:
-        print("Could not load repository at {}.".format(cp_src))
+                print("Test failed -> Moving right")
+                right = mid + 1
+
+            steps += 1
+
+        # If we found a good commit but no clear transition
+        if last_good_commit and last_good_commit != commits[-1]:
+            idx = commits.index(last_good_commit)
+            if idx + 1 < len(commits):
+                return head_commit, last_good_commit, commits[idx - 1]
+
+        print("\nSearch completed without finding clear transition")
+        return None, None, None
+
+    def linear_search_good_commit(self, commits: list[str]) -> Optional[str]:
+        """
+        Find good commit using linear search, skipping already tested commits
+        """
+        progress_bar = tqdm(commits, desc="Linear search", unit="commit")
+        for commit in progress_bar:
+            if commit in self.tested_commits:
+                continue
+
+            progress_bar.write(f"\nTrying commit {commit[:8]}")
+            can_build, is_good = self.test_commit(commit)
+
+            if can_build and is_good:
+                return commit
         return None
-    return 0
 
 
-def run_bisect(
-    cp_src: str,
-    cp_path: str,
-    good_commit: str,
-    bad_commit: str,
-    build_script: str,
-    test_script: str,
-    output_dir: str,
-    pattern: str,
-) -> str | None:
-    """
-    Returns:
-        - hash of the first bad commit if found
-        - None if the bisect fails
-    """
-    script_dir = os.path.dirname(os.path.realpath(__file__))
-    script_for_bisect = pjoin(script_dir, "oracle.py")
-
-    bisect_start_cmd = f"git bisect start {bad_commit} {good_commit}"
-    print(f"Starting bisect with cmd: {bisect_start_cmd}")
-    run_cmd_in_dir(bisect_start_cmd, cp_src)
-
-    bisect_cmd = f"git bisect run {script_for_bisect} {build_script} {test_script} {cp_path} {output_dir} '{pattern}'"
-    print(f"Invoking git bisect with cmd: {bisect_cmd}")
-    cp = run_cmd_in_dir(bisect_cmd, cp_src)
-
-    bisect_reset_cmd = "git bisect reset"
-    print(f"Resetting bisect with cmd: {bisect_reset_cmd}")
-    run_cmd_in_dir(bisect_reset_cmd, cp_src)
-
-    # process bisect output
-    bisect_output = cp.stdout.decode("utf-8")
-    print(f"Bisect output: {bisect_output}")
-
-    target_info_line = ""
-    for line in bisect_output.split("\n"):
-        if "is the first bad commit" in line:
-            target_info_line = line
-            break
-
-    if not target_info_line:
-        print("Chopper failed!")
-        return None
-    else:
-        commit = target_info_line.split(" ")[0]
-        print(f"First bad commit: {commit}")
-        return commit
-
-
-from os.path import join
-
-
-def main(bug_info, output_path) -> str | None:
+def find_bug_commit(bug_info_path: str, output_path: str):
+    """Main entry point"""
+    with open(bug_info_path) as f:
+        bug_info = json.load(f)
+    print(bug_info["cp_sources"][0], output_path)
     cp_path = bug_info["cp_path"]
-    cp_source_names = list(
-        map(
-            lambda x: (join(cp_path, "src", x["name"]), str(x["name"])),
-            bug_info["cp_sources"],
-        )
-    )
+    cp_src = os.path.join(cp_path, "src", bug_info["cp_sources"][0]["name"])
+    output_dir = os.path.join(cp_path, "out", "output")
 
-    stack_trace = bug_info["tiebreaker_files"]
-
-    sanitizer_names = re.escape(bug_info["triggered_sanitizer"]["name"])
-    sanitizer_names_compiled = re.compile(sanitizer_names)
     build_script = bug_info["build_script"]
     test_script = (
-        bug_info["test_script"]
-        + " "
-        + pjoin(cp_path, "tests", bug_info["failing_test_identifiers"][0])
+        f"{bug_info['test_script']} "
+        f"{os.path.join(cp_path, 'tests', bug_info['failing_test_identifiers'][0])}"
     )
 
-    # figure out what is the output directory for ./run.sh
-    output_dir = pjoin(cp_path, "out", "output")
+    tester = CommitTester(cp_src, cp_path, build_script, test_script, output_dir)
+    print("Verifying current commit fails...")
+    can_build, is_good = tester.test_commit("HEAD")
+    if can_build and is_good:
+        print("ERROR: Current commit should fail but doesn't")
+        return
 
-    # verify that the current commit fails on the test
-    print(f"Verifying that the current commits fails the test:")
+    # Get list of all commits
+    all_commits = tester.get_commit_list()
+    print(f"Found {len(all_commits)} total commits")
 
-    run_cmd_in_dir(build_script, cp_path)
-    run_cmd_in_dir(test_script, cp_path)
-    test_ok = decide_pass_fail(
-        output_dir,
-        re.compile("A"),  # re.compile(re.escape(stack_trace[0].split(":"))),
-        sanitizer_names_compiled,
-        Action.TEST,
-    )
-    if test_ok:
-        print(
-            "SOMETHING WRONG! Test should fail on the current version, but it is passing. Aborting."
-        )
-        return None
+    # Try binary search
+    print("\nStarting binary search phase...")
+    bad_commit, good_commit, bug_commit = tester.binary_search_good_commit(all_commits)
 
-    # verify that the first commit passes on the test
-    # first_commit_hash = get_first_commit_hash(cp_src)
-    # print(f"Verifying that the first commit passes on the test: {first_commit_hash}")
+    if good_commit and bug_commit:
+        print(f"\nSearch Results:")
+        print(f"Known bad commit (HEAD): {bad_commit[:8]}")
 
-    # repo_stash_checkout(cp_src, first_commit_hash)
-    # run_cmd_in_dir(build_script, cp_path)
-    # build_ok = decide_pass_fail(output_dir, sanitizer_names_compiled, Action.BUILD)
-    # if not build_ok:
-    #    # somehow the first commit could not be built
-    #    # this is ok, since the first commit may represent incompete project state
-    #    print("First commit cannot be built. Just skip it.")
-    # else:  # can build on initial commit
-    #     run_cmd_in_dir(test_script, cp_path)
-    #     test_ok = decide_pass_fail(output_dir, sanitizer_names_compiled, Action.TEST)
-    #     if not test_ok:
-    #         # first commit fails ...
-    #         print(
-    #             "First commit fails on the test. Aborting and returning the first commit."
-    #         )
-    #        return first_commit_hash
+        # Find index of good commit to get surrounding commits
+        idx = all_commits.index(good_commit)
 
-    # done with sanity checking; let's do the bisect
+        good_minus_one = all_commits[idx - 1] if idx > 0 else None
+        good_plus_one = all_commits[idx + 1] if idx + 1 < len(all_commits) else None
 
-    if len(cp_source_names) == 1:
-        cp_src = cp_source_names[0][0]
-        curr_commit_hash = get_curr_commit_hash(cp_src)
-        print("Starting bisect for single repo case ...")
-        repo_stash_checkout(cp_src, curr_commit_hash)
-        chopper_result: str | None = run_bisect_linear(
-            cp_src,
-            cp_path,
-            curr_commit_hash,
-            build_script,
-            test_script,
-            output_dir,
-            "A",
-            sanitizer_names,
-            True,
-        )
-        source_name = cp_source_names[0][1]
-        # TODO: if chopper result is None, just give the latest commit for now
-        if chopper_result is None:
-            chopper_result = curr_commit_hash
+        print(f"Context around transition:")
+        if good_minus_one:
+            print(f"Commit AFTER good: {good_minus_one[:8]} (bug inducing commit)")
+        print(f"Last good commit: {good_commit[:8]}")
+        if good_plus_one:
+            print(f"Commit BEFORE good: {good_plus_one[:8]}")
+
+        with open(output_path, "w") as f:
+            f.write(f"{bug_commit}\n{bug_info['cp_sources'][0]['name']}")
     else:
-        repositories = list(enumerate(cp_source_names))
-        repositories.sort(
-            key=lambda x: sum(1 for _ in Repo(x[1][0]).iter_commits()), reverse=True
-        )
-        print("Starting bisect for multi repo case ...")
-        for repo in repositories:
-            print(f"Starting bisect for repo {repo[1][1]} ...")
-            cp_src = repo[1][0]
-            curr_commit_hash = get_curr_commit_hash(cp_src)
-            repo_stash_checkout(cp_src, curr_commit_hash)
-            chopper_result: str | None = run_bisect_linear(
-                cp_src,
-                cp_path,
-                curr_commit_hash,
-                build_script,
-                test_script,
-                output_dir,
-                "A",
-                sanitizer_names,
-                False,
-            )
-            repo_stash_checkout(cp_src, curr_commit_hash)
-            if chopper_result is not None:
-                source_name = repo[1][1]
-                break
-        else:
-            chopper_result = get_curr_commit_hash(cp_source_names[0][0])
-            source_name = cp_source_names[0][1]
-
-    print("\n\n")
-    # NOTE: chopper final result is here
-    print((chopper_result, source_name))
-    with open(output_path, "w") as f:
-        f.write(f"{chopper_result}\n{source_name}")
-    repo_stash_checkout(cp_src, curr_commit_hash)
+        print("Failed to find transition point between good and bad commits")
 
 
 if __name__ == "__main__":
@@ -307,10 +233,12 @@ if __name__ == "__main__":
 
     bug_info_json_path = sys.argv[1]
     output_path = sys.argv[2]
+    print(bug_info_json_path)
     try:
-        with open(bug_info_json_path, "r") as bug_info_json_file:
-            bug_info = json.load(bug_info_json_file)
-            main(bug_info, output_path)
+        find_bug_commit(sys.argv[1], sys.argv[2])
+        # with open(bug_info_json_path, "r") as bug_info_json_file:
+        #   bug_info = json.load(bug_info_json_file)
+        #    main(bug_info, output_path)
     except Exception as e:
         tb = traceback.format_exc()
         print(tb)
