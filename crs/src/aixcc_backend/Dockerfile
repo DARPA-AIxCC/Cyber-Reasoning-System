@@ -1,5 +1,5 @@
 # Build AIxCC backend
-FROM rust:1.78-bullseye AS chef
+FROM rust:1.81-bullseye AS chef
 RUN cargo install cargo-chef
 WORKDIR /usr/src/aixcc_backend
 
