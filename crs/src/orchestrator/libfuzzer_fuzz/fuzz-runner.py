@@ -93,8 +93,8 @@ if strings.returncode != 0:
     dict_str = "-dict=/work/autodict.dict"
 
 # Run 10 fuzzer instances with agressive length expansion, do not stop on crashes, give 1 sec execution and 2048 byte length
-fuzz_command = f"bash -c 'cd /out/ && timeout -k 1m 4h /{binary_path} -fork={  os.getenv('CPU_COUNT',5) } -len_control=20 -use_value_profile=1 {dict_str} -ignore_crashes=1 -artifact_prefix={fuzz_out_dir}/crashes/ -max_len=2000000 -timeout=5 {initial_corpus_dir} {container_additional_seeds}'"
-non_dict_fuzz_command = f"bash -c 'cd /out/ && timeout -k 1m 4h /{binary_path} -fork={  os.getenv('CPU_COUNT',5) } -len_control=20 -use_value_profile=1 -ignore_crashes=1 -artifact_prefix={fuzz_out_dir}/crashes/ -max_len=2000000 -timeout=5 {initial_corpus_dir} {container_additional_seeds}'"
+fuzz_command = f"bash -c 'cd /out/ && timeout -k 1m 4h /{binary_path} -fork={  os.getenv('CPU_COUNT',5) } -len_control=20 -use_value_profile=1 {dict_str} -ignore_crashes=1 -detect_leaks=0 -artifact_prefix={fuzz_out_dir}/crashes/ -max_len=2000000 -timeout=5 {initial_corpus_dir} {container_additional_seeds}'"
+non_dict_fuzz_command = f"bash -c 'cd /out/ && timeout -k 1m 4h /{binary_path} -fork={  os.getenv('CPU_COUNT',5) } -len_control=20 -use_value_profile=1 -ignore_crashes=1 -detect_leaks=0 -artifact_prefix={fuzz_out_dir}/crashes/ -max_len=2000000 -timeout=5 {initial_corpus_dir} {container_additional_seeds}'"
 
 print(fuzz_command)
 
