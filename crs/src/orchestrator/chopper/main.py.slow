@@ -1,0 +1,174 @@
+#!/usr/bin/env python3
+import json
+import os
+import subprocess
+import sys
+import re
+import traceback
+from typing import Optional
+from pathlib import Path
+from tqdm import tqdm
+
+def run_cmd(cmd: str, cwd: str) -> subprocess.CompletedProcess:
+    """Run a command in specified directory and return the result"""
+    return subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True)
+
+def verify_test_fails(build_script: str, test_script: str, cp_path: str, output_dir: str) -> bool:
+    """Verify if the test fails as expected"""
+    # Run build
+    build_result = run_cmd(build_script, cp_path)
+    if build_result.returncode != 0:
+        print(f"Build failed with exit code {build_result.returncode}")
+        return False
+        
+    # Run test
+    test_result = run_cmd(test_script, cp_path)
+    
+    # Check output directory for test results
+    output_files = list(Path(output_dir).glob("**/*stderr.log"))
+    if not output_files:
+        print("No test output files found")
+        return False
+        
+    # Get latest test output
+    latest_output = max(output_files, key=lambda p: p.stat().st_mtime)
+    test_output = latest_output.read_text()
+    
+    # Test should fail - if it passes, something is wrong
+    return test_result.returncode != 0 or "FAILED" in test_output
+
+def get_commit_hash(repo_path: str) -> str:
+    """Get current commit hash"""
+    result = run_cmd("git rev-parse HEAD", repo_path)
+    return result.stdout.strip()
+
+def run_bisect(cp_src: str, cp_path: str, build_script: str, test_script: str, 
+               output_dir: str, pattern: str) -> Optional[str]:
+    """
+    Run git bisect to find first bad commit
+    Returns hash of first bad commit or None if bisect fails
+    """
+    print("Starting bisect process...")
+    
+    # Get current (bad) commit
+    bad_commit = get_commit_hash(cp_src)
+    
+    # Initialize bisect
+    run_cmd("git bisect start", cp_src)
+    run_cmd(f"git bisect bad {bad_commit}", cp_src)
+    
+    # Find a good commit by going back through history
+    found_good = False
+    history_result = run_cmd("git log --format=%H", cp_src)
+    commits = history_result.stdout.strip().split('\n')
+    progress_bar = tqdm(commits, desc="Checking commits", unit="commit")
+    for commit in progress_bar:
+    #for commit in tqdm(commits, desc="Checking commits", unit="commit"):
+        print(f"Trying commit {commit[:8]}...")
+        
+        # Checkout commit
+        checkout_result = run_cmd(f"git checkout {commit}", cp_src)
+        if checkout_result.returncode != 0:
+            print(f"Failed to checkout commit {commit[:8]}")
+            continue
+            
+        # Try to build
+        build_result = run_cmd(build_script, cp_path)
+        if build_result.returncode != 0:
+            print(f"Build failed for commit {commit[:8]}")
+            continue
+            
+        # Run test
+        test_result = run_cmd(test_script, cp_path)
+        
+        # Check if test passes (good commit)
+        if test_result.returncode == 0:
+            run_cmd(f"git bisect good {commit}", cp_src)
+            found_good = True
+            print(f"Found good commit: {commit[:8]}")
+            break
+    
+    if not found_good:
+        print("Could not find a good commit")
+        run_cmd("git bisect reset", cp_src)
+        return None
+        
+    # Run the bisect process
+    while True:
+        # Get current commit being tested
+        current = get_commit_hash(cp_src)
+        
+        # Build and test
+        build_result = run_cmd(build_script, cp_path)
+        if build_result.returncode != 0:
+            run_cmd("git bisect skip", cp_src)
+            continue
+            
+        test_result = run_cmd(test_script, cp_path)
+        
+        # Determine if current commit is good or bad
+        if test_result.returncode == 0:
+            bisect_result = run_cmd("git bisect good", cp_src)
+        else:
+            bisect_result = run_cmd("git bisect bad", cp_src)
+            
+        # Check if bisect is complete
+        if "is the first bad commit" in bisect_result.stdout:
+            bad_commit = re.search(r'([a-f0-9]{40})', bisect_result.stdout)
+            if bad_commit:
+                result = bad_commit.group(1)
+                run_cmd("git bisect reset", cp_src)
+                return result
+            break
+            
+        if "bisect run failed" in bisect_result.stdout:
+            break
+    
+    run_cmd("git bisect reset", cp_src)
+    return None
+
+def main(bug_info_path: str, output_path: str):
+    """Main entry point"""
+    print("Main") 
+    cp_path = bug_info["cp_path"]
+    cp_src = os.path.join(cp_path, "src", bug_info["cp_sources"][0]["name"])
+    output_dir = os.path.join(cp_path, "out", "output")
+    
+    build_script = bug_info["build_script"]
+    test_script = (f"{bug_info['test_script']} " 
+                  f"{os.path.join(cp_path, 'tests', bug_info['failing_test_identifiers'][0])}")
+    
+    # Verify current commit fails
+    print("Verifying current commit fails...")
+    if not verify_test_fails(build_script, test_script, cp_path, output_dir):
+        print("ERROR: Current commit should fail but doesn't")
+        return
+        
+    # Run bisect
+    pattern = re.escape(bug_info["triggered_sanitizer"]["name"])
+    result = run_bisect(cp_src, cp_path, build_script, test_script, output_dir, pattern)
+    
+    if result:
+        print(f"Found first bad commit: {result}")
+        # Write result
+        with open(output_path, "w") as f:
+            f.write(f"{result}\n{bug_info['cp_sources'][0]['name']}")
+    else:
+        print("Failed to find first bad commit")
+if __name__ == "__main__":
+    """
+    Entry of the Chopper tool.
+    """
+
+    bug_info_json_path = sys.argv[1]
+    output_path = sys.argv[2]
+    print(bug_info_json_path)
+    try:
+        with open(bug_info_json_path, "r") as bug_info_json_file:
+            bug_info = json.load(bug_info_json_file)
+            main(bug_info, output_path)
+    except Exception as e:
+        tb = traceback.format_exc()
+        print(tb)
+        print(f"Error: {e}")
+        sys.exit(1)
