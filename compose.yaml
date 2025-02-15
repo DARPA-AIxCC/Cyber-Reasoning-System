@@ -74,6 +74,20 @@ services:
       retries: 10
       start_period: 10s
       timeout: 5s
+    volumes:
+      #################################################################################
+      ### THESE VOLUMES MUST BE INCLUDED WITHOUT MODIFICATION TO ALL CRS CONTAINERS ###
+      # A CRS MUST copy CP repositories from `AIXCC_CP_ROOT` to a writable location such as
+      # `AIXCC_CRS_SCRATCH_SPACE` for building and testing CPs.
+      # A CRS MUST not modify settings within this section.
+      - type: bind
+        source: ${PWD}/crs_scratch
+        target: /crs_scratch
+        bind:
+          propagation: rshared
+      - ./cp_root:/cp_root
+      #################################################################################
+
   afl-smarter:
     labels:
       kompose.service.accountname: "crs"  # make sure to use this label if you want your CRS to have K8S API access
