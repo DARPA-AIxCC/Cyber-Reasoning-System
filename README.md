@@ -1,103 +1,230 @@
-# CRS Sandbox
+# CRS
 
-This repository, the `CRS Sandbox` includes a [./compose.yaml](./compose.yaml) file.
-This file is the only resource competitors will have for infrastructure automation at competition time.
-Environment variables and secrets will be injected into [./compose.yaml](./compose.yaml)
-from each competitors private copy of the `CRS Sandbox`.
+## Description
 
-Competitor SSO accounts to GitHub will be limited to a basic set of actions for making modifications and merging PRs within the GitHub repository.
+This is the CRS (Cyber Reasoning System) submitted by team "Healing Touch" to the DARPA AIxCC semi-final competition in 2024.
 
-## Evaluation Window
+## Setup and Installation
 
-### Phase 1 - GitHub Actions Passing
+The following section includes steps for running the CRS *locally* outside of Kubernetes using docker compose.
 
-Date: 2024-05-30
-
-On the above date, teams will be provided access to their private CRS repositories.
-
-This repository will be generated from the CRS Sandbox reference repository which will be treated as the template repository.
-
-Merging into main will require the workflows specified in `.github/workflows/evaluator.yml` and `.github/workflows/package.yml` to pass.
-
-Competitors MUST release at least one version of their CRS during Phase 1 to validate their package workflow correctly executes.
-
-Failure to do so will prevent a team's CRS from moving forward to Phase 2.
-
-During Phase 1, teams must use their own secret keys and tokens to access collaborator resources
-(LLM APIs) and authenticate against GitHub.
-
-#### Interpreting Results in GitHub Actions
-
-The job that evaluates the CRS's performance is part of the [CRS Evaluator](https://github.com/aixcc-sc/crs-sandbox/actions/workflows/evaluator.yml) and is called `run-validate-crs-submissions`.
-
-It runs the CRS as defined in the [./compose.yaml](./compose.yaml) and evaluates its submitted vulnerability discoveries and generated patches.
-Check the output of the validation steps, CRS submission log step, and CRS logs step for introspection into what happened.
-
-![GitHub Actions output showing a CRS submitting a working VD and a failing GP](./.static/crs-logs-example.png)
-
-### Phase 2 - Automated Execution of your CRS
-
-Date: 2024-06-21
-
-On the above date, the AIxCC Game Architecture team will automatically execute competitors CRSs against a subset of published challenge problems.
-
-The CRS MUST be released via [GitHub Release](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository) and all GitHub actions must pass.
-
-Competitors must release new versions of their CRS with an updated tag from `main` after the start of Phase 2.
-
-With each new release of a competitors CRS it will be automatically executed.
-
-Only the latest semantic version of a competitors CRS that is properly tagged from `main` will be tested in Phase 2.
-
-During Phase 2, secret keys and tokens for collaborator resources (LLM APIs) and GitHub access will
-be set by the AIxCC infrastructure team.
-
-## Code Owners
-
-Please review the [.github/CODEOWNERS](.github/CODEOWNERS) file.
-
-This file shows all the files that require pull request approval by the Game Architecture team.
-The `main` branch protections will prevent making changes to these files.
-
-The following paths have push protections in place.
-They cannot be modified even within a private branch or pull request.
-
-If you feel like one of these items needs modified, please make a [CRS Sandbox Issue](https://github.com/aixcc-sc/crs-sandbox/issues/new).
-
-The Game Architecture team will review the request and respond accordingly.
+1. Clone the repository:
 
 ```bash
-.github/actions/trigger-downstream-sync.mjs
-.github/workflows/evaluator.yml
-.github/workflows/README.md
-.github/workflows/template-sync.yml
-.github/workflows/trigger-sync-on-release.yml
-.tool-versions
-charts/*
-cp_root/*
-crs_scratch/*
-dind_cache/*
-LICENSE
-Makefile
-README.md
-sandbox/*
+git clone https://github.com/DARPA-AIxCC/asc-crs-healing-touch
 ```
 
-## Docker Images
+2. Create the environment file:
+   - Create `sandbox/env` file containing the required API keys for AI tools
+   - Reference the [example.env](https://github.com/DARPA-AIxCC/asc-crs-healing-touch/blob/main/sandbox/example.env) for the required format
 
-Competitors MUST push all container images that are contained in [compose.yaml](./compose.yaml) to their CRS repository.
+3. Update the `cp_root.yaml` with your target subject
+   - For example, using the public NGINX: https://github.com/aixcc-public/challenge-004-nginx-cp
 
-All container images MUST contain a tag.
+4. Build and start the environment:
+```bash
+make build
+make up
+make crs-shell  # This enters the main container
+```
 
-Docker Compose services which contain a `build` section MUST be added to [package.yaml](./.github/workflows/package.yml).
+## Running Workflows
 
-If your solution is referencing a public container like PostgreSQL or MongoDB, you MUST push this image to your CRS repository.
+Once inside the container (`make crs-shell`), navigate to the `/app/orchestrator` directory. Execute workflows using:
 
-You MUST push these images with a tag to your CRS OCI repository and reference this image using the `ghcr.io` link.
+```bash
+timeout -k 5m 4h python3 -m main -c /crs_scratch/benchmark/darpa/nginx/workflow-1-30918.json --special-meta=/crs_scratch/benchmark/darpa/nginx/meta-data.json
+```
 
-GitHub has the following [Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry) instructions.
+### Understanding Configuration Files
 
-Failure to follow these steps will prevent your CRS images from being able to execute at the competition.
+The system uses two main configuration files:
+
+1. **Workflow JSON**: Controls the execution flow and tool configurations
+   - Enable/disable specific tools (fuzz, crash-analyze, bisect, etc.)
+   - Configure container resources (CPU, memory)
+   - Set timeouts and test limits
+   - Define task profiles and execution parameters
+   - Example file: 
+
+<details>
+   <summary>Composite workflow example</summary>
+
+
+```json
+{
+    "general": {
+        "parallel": false,
+        "enable_ui": false,
+        "secure-hash": false,
+        "debug-mode": true,
+        "cpus": 6
+    },
+    "tasks": {
+        "default": {
+            "compact-results": true,
+            "dump-patches": false,
+            "only-analyse": false,
+            "only-setup": false,
+            "only-instrument": false,
+            "only-test": false,
+            "rebuild-all": false,
+            "rebuild-base": false,
+            "use-cache": false,
+            "use-subject-as-base": true,
+            "use-container": true,
+            "use-gpu": false,
+            "use-purge": false,
+            "container-profiles-id-list": [
+                "CP1"
+            ],
+            "task-profiles-id-list": [
+                "TP1"
+            ]
+        },
+        "chunks": [
+            {
+                "type": "composite",
+                "composite-sequence": {
+                    "fuzz": [
+                        {
+                            "name": "libfuzzerfuzz",
+                            "local": true,
+                            "ignore": false
+                        },
+                        {
+                            "name": "klee",
+                            "local": true,
+                            "ignore": true
+                        },
+                        {
+                            "name": "aflsmarter",
+                            "local": true,
+                            "ignore": false
+                        },
+                        {
+                            "name": "dumbfuzzer",
+                            "local": true,
+                            "ignore": false
+                        }
+                    ],
+                    "crash-analyze": [
+                        {
+                            "name": "sanitizeparser",
+                            "local": true,
+                            "ignore": false,
+                            "type": "analyze"
+                        }
+                    ],
+                    "bisect": [
+                        {
+                            "name": "chopper",
+                            "local": true,
+                            "ignore": false,
+                            "type": "analyze"
+                        }
+                    ],
+                    "localize": [
+                        {
+                            "name": "e9patchneosbfl",
+                            "local": true,
+                            "ignore": false
+                        }
+                    ],
+                    "repair": [
+                        {
+                            "name": "SOME_LLM_AGENT",
+                            "local": true,
+                            "ignore": false
+                        },
+                        {
+                            "name": "hermes",
+                            "local": true,
+                            "ignore": false
+                        },
+                        {
+                            "name": "ddrepair",
+                            "local": true,
+                            "ignore": false
+                        }
+                    ],
+                    "validate": [
+                        {
+                            "name": "valkyrie",
+                            "local": true,
+                            "ignore": false
+                        }
+                    ],
+                    "iterative-repair": [
+                        {
+                            "name": "iterativehermes",
+                            "local": true,
+                            "ignore": false,
+                            "type": "repair"
+                        }
+                    ]
+                },
+                "benchmarks": [
+                    {
+                        "name": "darpa",
+                        "bug-id-list": [
+                            "*"
+                        ]
+                    }
+                ],
+                "tools": [
+                    {
+                        "name": "basicworkflow",
+                        "params": "",
+                        "local": true
+                    }
+                ]
+            }
+        ]
+    },
+    "profiles": {
+        "container-profiles": [
+            {
+                "id": "CP1",
+                "cpu-count": 6,
+                "mem-limit": "16g",
+                "enable-network": true
+            }
+        ],
+        "task-profiles": [
+            {
+                "id": "TP1",
+                "timeout": 4,
+                "fault-location": "auto",
+                "passing-test-ratio": 1,
+                "passing-test-limit": 30,
+                "failing-test-limit": 30,
+                "fuzz-timeout": 4,
+                "localize-timeout": 0.5,
+                "repair-timeout": 1
+            }
+        ]
+    }
+} 
+```
+</details>
+
+2. **Meta-data JSON**: Defines the target subject configuration
+   - Specifies test harnesses and their locations
+   - Defines source locations and build scripts
+   - Configures test inputs and analysis outputs
+   - Sets up sanitizer configurations
+   - Specifies base images and container settings
+   - Example file: https://github.com/DARPA-AIxCC/asc-crs-healing-touch/blob/main/crs/src/orchestrator/benchmark/darpa/meta-data.json
+
+The workflow can be customized by:
+- Toggling tools using the `ignore` flag in the workflow JSON
+- Adjusting resource allocation in container profiles
+- Modifying timeouts and test limits in task profiles
+- Updating source paths and build configurations in meta-data
+- Configuring different test harnesses or build scripts through meta-data
+
+# AIxCC Competition Infrastructure and Information
 
 ## CRS Constraints on Docker and Virtualization
 
@@ -141,26 +268,6 @@ We will continue iterating on the CRS sandbox as we grow closer to the competiti
 
 Please see the competition rules and technical release as the cut off dates for changes will be described there.
 
-### Setting GitHub secrets with competitor repository permissions
-
-Using the [GitHub CLI](https://cli.github.com/), you are able to set repository-level secrets
-despite not being able to view or edit them in the web UI.
-
-Your GitHub Classic PAT will need the `Full control of private repositories` permission, and you
-will need it set in the `GITHUB_TOKEN` environment variable.  Once you have that configured, try `gh
-secret list`.  You might get a 403 error requiring SSO sign-in:
-
-![gh secret list SSO sign-in error](./.static/gh-secret-list-sso-sign-in.png)
-
-Open the link and complete the SSO flow.  Then you should be able to use `gh secret set` to set
-secrets on your repository and `gh secrets list` to show which ones exist and when they were most
-recently set.
-
-The [GitHub CRS Validation workflow](./.github/workflows/evaluator.yml) expects the repo-level
-secrets to have the same names as in `sandbox/env` (`OPENAI_API_KEY`, etc).
-
-![gh secret set and list demonstration](./.static/gh-secret-list-set-demo.png)
-
 ## LiteLLM Models Supported
 
 | Provider  | Model                  | Pinned Version              | Requests per Minute (RPM) | Tokens per Minute (TPM)  |
@@ -203,22 +310,6 @@ ASC, then the fallback will likely be "textembedding-gecko@003".
 ## Local Development
 
 We recommend using Ubuntu 22.04 LTS for CRS Sandbox development and will be unable to investigate issues with other base operating systems.
-
-### GitHub Personal Access Token (PAT)
-
-In order to work with the CRS Sandbox you must setup your GitHub personal access token or PAT following these steps.
-
-1. Configure a personal access token (PAT) with `read:packages` permission by following this [guide](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-with-a-personal-access-token-classic)
-2. Authorize the generated PAT for the `aixcc-sc` organization by this [guide](https://docs.github.com/en/enterprise-cloud@latest/authentication/authenticating-with-saml-single-sign-on/authorizing-a-personal-access-token-for-use-with-saml-single-sign-on)
-3. Run `echo "example-token-1234" | docker login ghcr.io -u USERNAME --password-stdin` replacing example-token-1234 with your generated PAT
-4. Confirm that you see `> Login Succeeded` in your output from step #3.
-
-### GitHub SSH Key
-
-1. Generate an SSH key by following this [guide](https://docs.github.com/en/enterprise-cloud@latest/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent)
-2. Upload the generated SSH key to your AIxCC GitHub account by following this [guide](https://docs.github.com/en/enterprise-cloud@latest/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account)
-3. Follow this [guide](https://docs.github.com/en/enterprise-cloud@latest/authentication/authenticating-with-saml-single-sign-on/authorizing-an-ssh-key-for-use-with-saml-single-sign-on)
-to authorize the SSH key for the `aixcc-sc` organization
 
 ### Precommit
 
