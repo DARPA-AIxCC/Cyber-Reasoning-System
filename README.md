@@ -224,6 +224,12 @@ The workflow can be customized by:
 - Updating source paths and build configurations in meta-data
 - Configuring different test harnesses or build scripts through meta-data
 
+## Acknknowledgements
+
+This repository is the result of incredible work by our team members:
+
+Ali El-Husseini, Abhik Roychoudhury, Cristian Cadar, Haifeng Ruan, Daniel Schemmel, Gregory J. Duck, Jiawei Wang, Lin Tan, Martin Mirchev, Martin Nowack, Nan Jiang, Ruijie Meng, Ridwan Shariffdeen, Thuan Pham, Wenqi Yan, Wentao Gao, Yi Wu, Xiangyu Zhang, Xiangzhe Xu, Zhang Yuntong, and Zhuo Zhang.
+
 # AIxCC Competition Infrastructure and Information
 
 ## CRS Constraints on Docker and Virtualization
