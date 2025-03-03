@@ -2,7 +2,7 @@
 
 ## Description
 
-This is the CRS (Cyber Reasoning System) submitted by team "Healing Touch" to the DARPA AIxCC semi-final competition in 2024.
+This is the CRS (Cyber Reasoning System) submitted by team "Healing Touch" in the DARPA AIxCC semi-final competition in 2024.
 
 ## Setup and Installation
 
